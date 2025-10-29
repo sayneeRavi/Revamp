@@ -2,7 +2,7 @@ const express = require("express");
 const fetch = global.fetch;
 
 const router = express.Router();
-const AUTH_SERVICE = process.env.AUTH_SERVICE;
+const AUTH_SERVICE = process.env.AUTH_SERVICE || "http://localhost:8081";
 
 // Register endpoint
 router.post("/register", async (req, res) => {
