@@ -54,6 +54,9 @@ const bodyParser = require("body-parser");
 // Import routes
 const authRoutes = require("./routes/authRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
+const taskRoutes = require("./routes/taskRoutes");
+const timeTrackingRoutes = require("./routes/timeTrackingRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 app.use(cors());
@@ -61,7 +64,10 @@ app.use(bodyParser.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/auth", employeeRoutes);
+app.use("/api/employees", employeeRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/time-tracking", timeTrackingRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Gateway running on port ${PORT}`));

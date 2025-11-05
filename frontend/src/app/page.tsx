@@ -62,6 +62,30 @@ export default function HomePage() {
             </button>
           </Link>
         </motion.div>
+
+        {/* Development Quick Access */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8, duration: 0.8 }}
+          className="mt-6 flex gap-4 justify-center"
+        >
+          <Link href="/employee-dashboard">
+            <button className="px-4 py-2 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition shadow-lg">
+              🚀 Employee Dashboard (Dev)
+            </button>
+          </Link>
+          <Link href="/admin-dashboard">
+            <button className="px-4 py-2 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition shadow-lg">
+              👑 Admin Dashboard (Dev)
+            </button>
+          </Link>
+          <Link href="/consumer-dashboard">
+            <button className="px-4 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 transition shadow-lg">
+              👤 Consumer Dashboard (Dev)
+            </button>
+          </Link>
+        </motion.div>
       </div>
     </main>
   );
