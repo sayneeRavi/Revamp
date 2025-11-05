@@ -361,7 +361,7 @@ export default function EmployeeDashboard() {
   };
 
   const Sidebar = () => (
-    <div className="w-64 bg-white shadow-lg rounded-l-2xl p-6">
+    <div className="w-64 bg-[#000042] shadow-lg rounded-l-2xl p-6">
       <div className="flex items-center mb-8">
         <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
           {user?.username?.charAt(0) || 'E'}
