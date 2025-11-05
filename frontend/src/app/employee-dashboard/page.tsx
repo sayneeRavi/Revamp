@@ -707,7 +707,10 @@ export default function EmployeeDashboard() {
                             stopTimeTracking();
                             handleTaskAction(task.id, 'complete');
                           }}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                          className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
+                          style={{ backgroundColor: '#11823b' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
                         >
                           <CheckCircle className="w-4 h-4 mr-2" />
                           Finish & Complete
@@ -717,7 +720,10 @@ export default function EmployeeDashboard() {
                       <>
                         <button
                           onClick={() => resumeTimeTracking(task.id)}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                          className="px-3 py-2 text-white rounded-lg transition-colors flex items-center"
+                          style={{ backgroundColor: '#000053' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#000042'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#000053'}
                         >
                           <Play className="w-4 h-4 mr-2" />
                           Resume Timer
@@ -727,7 +733,10 @@ export default function EmployeeDashboard() {
                             stopTimeTracking();
                             handleTaskAction(task.id, 'complete');
                           }}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                          className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
+                          style={{ backgroundColor: '#11823b' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
                         >
                           <CheckCircle className="w-4 h-4 mr-2" />
                           Finish & Complete
