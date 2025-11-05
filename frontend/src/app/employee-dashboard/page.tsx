@@ -41,7 +41,8 @@ interface TimeLog {
   startTime: string;
   endTime?: string;
   duration?: number;
-  status: 'active' | 'completed';
+  status: 'active' | 'paused' | 'completed';
+  updatedAt?: string;
 }
 
 export default function EmployeeDashboard() {
@@ -75,6 +76,56 @@ export default function EmployeeDashboard() {
     // Attempt to load from API; fallback to mock data
     fetchTasks();
   }, []);
+
+  // Load current time log from backend (active, otherwise latest paused)
+  useEffect(() => {
+    const loadCurrentLog = async () => {
+      try {
+        if (!GATEWAY_URL || !employeeId) return;
+        // Try active first
+        const activeRes = await fetch(`${GATEWAY_URL}/api/time-tracking/active/${employeeId}`, { cache: 'no-store' });
+        if (activeRes.ok) {
+          const log = await activeRes.json();
+          const tl: TimeLog = {
+            id: log.id,
+            taskId: log.taskId,
+            startTime: log.startTime,
+            endTime: log.endTime,
+            duration: log.duration,
+            status: log.status,
+            updatedAt: log.updatedAt
+          };
+          setCurrentTimeLog(tl);
+          return;
+        }
+        // If not active, try to find the latest paused log
+        const allRes = await fetch(`${GATEWAY_URL}/api/time-tracking/employee/${employeeId}`, { cache: 'no-store' });
+        if (allRes.ok) {
+          const logs = await allRes.json();
+          const paused = (logs || []).filter((l: any) => l.status === 'paused');
+          if (paused.length) {
+            paused.sort((a: any, b: any) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+            const pl = paused[0];
+            const tl: TimeLog = {
+              id: pl.id,
+              taskId: pl.taskId,
+              startTime: pl.startTime,
+              endTime: pl.endTime,
+              duration: pl.duration,
+              status: pl.status,
+              updatedAt: pl.updatedAt
+            };
+            setCurrentTimeLog(tl);
+            return;
+          }
+        }
+        setCurrentTimeLog(null);
+      } catch {
+        // Ignore load errors on initial mount
+      }
+    };
+    loadCurrentLog();
+  }, [employeeId, GATEWAY_URL]);
 
   const fetchTasks = async () => {
     try {
@@ -311,24 +362,68 @@ export default function EmployeeDashboard() {
     if (currentTimeLog) {
       try {
         if (GATEWAY_URL) {
-          await fetch(`${GATEWAY_URL}/api/time-tracking/pause/${currentTimeLog.id}`, { method: 'POST' });
+          const res = await fetch(`${GATEWAY_URL}/api/time-tracking/pause/${currentTimeLog.id}`, { method: 'POST' });
+          if (!res.ok) {
+            throw new Error('Pause request failed');
+          }
         }
-      } catch {}
-      await stopTimeTracking();
-      console.log('⏸️ Time tracking paused');
+      } catch (e) {
+        console.warn('Pause request error (optimistic update applied):', e);
+      } finally {
+        // Optimistic UI update so the button always works
+        setTimeLogs(prev => prev.map(log =>
+          log.id === currentTimeLog.id
+            ? { ...log, endTime: new Date().toISOString(), status: 'paused' }
+            : log
+        ));
+        setCurrentTimeLog({ ...currentTimeLog, status: 'paused' });
+        console.log('⏸️ Time tracking paused');
+      }
     }
   };
 
   const resumeTimeTracking = async (taskId: string) => {
-    if (currentTimeLog) {
-      try {
-        if (GATEWAY_URL) {
-          await fetch(`${GATEWAY_URL}/api/time-tracking/resume/${currentTimeLog.id}`, { method: 'POST' });
+    try {
+      if (!GATEWAY_URL) throw new Error('GATEWAY_URL not set');
+      // If we already have a paused current log for this task, resume it
+      if (currentTimeLog && currentTimeLog.taskId === taskId && currentTimeLog.status === 'paused') {
+        const res = await fetch(`${GATEWAY_URL}/api/time-tracking/resume/${currentTimeLog.id}`, { method: 'POST' });
+        if (res.ok) {
+          const log = await res.json();
+          const tl: TimeLog = { id: log.id, taskId: log.taskId, startTime: log.startTime, status: 'active' };
+          setCurrentTimeLog(tl);
+          setTimeLogs(prev => prev.map(l => l.id === tl.id ? { ...l, status: 'active', startTime: tl.startTime } : l));
+          console.log('▶️ Time tracking resumed');
+          return;
         }
-      } catch {}
+      }
+
+      // Else try to find a paused log for this employee and task
+      const logsRes = await fetch(`${GATEWAY_URL}/api/time-tracking/employee/${employeeId}`, { cache: 'no-store' });
+      if (logsRes.ok) {
+        const logs = await logsRes.json();
+        const paused = (logs || []).filter((l: any) => l.taskId === taskId && l.status === 'paused');
+        if (paused.length) {
+          paused.sort((a: any, b: any) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+          const pl = paused[0];
+          const res = await fetch(`${GATEWAY_URL}/api/time-tracking/resume/${pl.id}`, { method: 'POST' });
+          if (res.ok) {
+            const log = await res.json();
+            const tl: TimeLog = { id: log.id, taskId: log.taskId, startTime: log.startTime, status: 'active' };
+            setCurrentTimeLog(tl);
+            setTimeLogs(prev => prev.map(l => l.id === tl.id ? { ...l, status: 'active', startTime: tl.startTime } : l));
+            console.log('▶️ Time tracking resumed');
+            return;
+          }
+        }
+      }
+
+      // Fallback: start a new time log
+      await startTimeTracking(taskId);
+    } catch (e) {
+      // Local fallback
+      await startTimeTracking(taskId);
     }
-    await startTimeTracking(taskId);
-    console.log('▶️ Time tracking resumed');
   };
 
   const getStatusColor = (status: string) => {
@@ -455,7 +550,7 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#00571cff', borderColor: '#00571cff' }}>
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: 'git ', borderColor: '#00571cff' }}>
           <div className="flex items-center">
             <div className="p-3 bg-green-100 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600" />
@@ -490,8 +585,8 @@ export default function EmployeeDashboard() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">Currently Working On</h3>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-gray-600">Timer Active</span>
+              <div className={`w-3 h-3 rounded-full ${currentTimeLog.status === 'paused' ? 'bg-yellow-500' : 'bg-green-500'} ${currentTimeLog.status === 'paused' ? '' : 'animate-pulse'}`}></div>
+              <span className="text-sm text-gray-600">{currentTimeLog.status === 'paused' ? 'Timer Paused' : 'Timer Active'}</span>
             </div>
           </div>
           <div className="flex items-center justify-between">
@@ -511,13 +606,26 @@ export default function EmployeeDashboard() {
                 {formatDuration(currentTimeLog.startTime)}
               </p>
               <div className="flex space-x-2 mt-2">
-                <button
-                  onClick={pauseTimeTracking}
-                  className="px-3 py-1 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
-                >
-                  <Pause className="w-3 h-3 inline mr-1" />
-                  Pause
-                </button>
+                {currentTimeLog.status === 'active' ? (
+                  <button
+                    onClick={pauseTimeTracking}
+                    className="px-3 py-1 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
+                  >
+                    <Pause className="w-3 h-3 inline mr-1" />
+                    Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => resumeTimeTracking(currentTimeLog.taskId)}
+                    className="px-3 py-1 text-white rounded-lg transition-colors text-sm"
+                    style={{ backgroundColor: '#000053' }}
+                    onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#000042'}
+                    onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#000053'}
+                  >
+                    <Play className="w-3 h-3 inline mr-1" />
+                    Resume
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     stopTimeTracking();
@@ -598,26 +706,15 @@ export default function EmployeeDashboard() {
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Tasks</h3>
         <div className="space-y-3">
           {tasks.slice(0, 3).map((task) => (
-            <div 
-              key={task.id} 
-              className="flex items-center justify-between p-3 rounded-lg" 
-              style={{ 
-                backgroundColor: 
-                  task.status === 'in-progress' ? '#6c4133ff' :
-                  task.status === 'completed' ? '#00571cff' :
-                  task.status === 'delivered' ? '#a855f7' :
-                  task.status === 'assigned' ? '#eab308' :
-                  task.status === 'accepted' ? '#3b82f6' : 'rgba(0, 0, 0, 0.4)'
-              }}
-            >
+            <div key={task.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-3 h-3 rounded-full"
                   style={{
                     backgroundColor: 
-                      task.status === 'in-progress' ? '#ffffff' :
-                      task.status === 'completed' ? '#ffffff' :
-                      task.status === 'delivered' ? '#ffffff' : '#ffffff'
+                      task.status === 'in-progress' ? '#6c4133ff' :
+                      task.status === 'completed' ? '#00571cff' :
+                      task.status === 'delivered' ? '#a855f7' : '#9ca3af'
                   }}
                 ></div>
                 <div>
@@ -626,10 +723,14 @@ export default function EmployeeDashboard() {
                 </div>
               </div>
               <span 
-                className="px-2 py-1 rounded-full text-xs font-medium"
+                className="px-2 py-1 rounded-full text-xs font-medium text-white"
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff'
+                  backgroundColor: 
+                    task.status === 'in-progress' ? '#6c4133ff' :
+                    task.status === 'completed' ? '#00571cff' :
+                    task.status === 'delivered' ? '#a855f7' : 
+                    task.status === 'assigned' ? '#eab308' :
+                    task.status === 'accepted' ? '#3b82f6' : '#6b7280'
                 }}
               >
                 {task.status.replace('-', ' ')}
@@ -736,28 +837,56 @@ export default function EmployeeDashboard() {
                 {task.status === 'in-progress' && (
                   <div className="flex space-x-2">
                     {currentTimeLog && currentTimeLog.taskId === task.id ? (
-                      <>
-                        <button
-                          onClick={pauseTimeTracking}
-                          className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center"
-                        >
-                          <Pause className="w-4 h-4 mr-2" />
-                          Pause
-                        </button>
-                        <button
-                          onClick={() => {
-                            stopTimeTracking();
-                            handleTaskAction(task.id, 'complete');
-                          }}
-                          className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
-                          style={{ backgroundColor: '#11823b' }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Finish & Complete
-                        </button>
-                      </>
+                      currentTimeLog.status === 'active' ? (
+                        <>
+                          <button
+                            onClick={pauseTimeTracking}
+                            className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center"
+                          >
+                            <Pause className="w-4 h-4 mr-2" />
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => {
+                              stopTimeTracking();
+                              handleTaskAction(task.id, 'complete');
+                            }}
+                            className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
+                            style={{ backgroundColor: '#11823b' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Finish & Complete
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => resumeTimeTracking(task.id)}
+                            className="px-3 py-2 text-white rounded-lg transition-colors flex items-center"
+                            style={{ backgroundColor: '#000053' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#000042'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#000053'}
+                          >
+                            <Play className="w-4 h-4 mr-2" />
+                            Resume Timer
+                          </button>
+                          <button
+                            onClick={() => {
+                              stopTimeTracking();
+                              handleTaskAction(task.id, 'complete');
+                            }}
+                            className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
+                            style={{ backgroundColor: '#11823b' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Finish & Complete
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
                         <button
