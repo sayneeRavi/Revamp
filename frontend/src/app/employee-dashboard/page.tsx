@@ -441,7 +441,7 @@ export default function EmployeeDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-10">
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#091c54ff', borderColor: '#091c54ff' }}>
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#000042', borderColor: '#000042' }}>
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
               <Wrench className="w-6 h-6 text-blue-600" />
@@ -535,16 +535,29 @@ export default function EmployeeDashboard() {
       )}
 
       {/* Workflow Status */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6 relative z-10">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Workflow Status</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="rounded-xl p-6 shadow-sm border mb-6 relative z-10 overflow-hidden" style={{ borderColor: '#046169' }}>
+        {/* Solid base layer to block dashboard background */}
+        <div className="absolute inset-0" style={{ backgroundColor: '#041d3cff' }}></div>
+        
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ 
+            backgroundImage: 'url(/bg2.jpg)',
+            opacity: 0.7
+          }}
+        ></div>
+        
+        <div className="relative z-10">
+          <h3 className="text-lg font-semibold text-white mb-4">Workflow Status</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
               <span className="text-yellow-600 font-bold">
                 {tasks.filter(t => t.status === 'assigned').length}
               </span>
             </div>
-            <p className="text-sm text-gray-600">Assigned</p>
+            <p className="text-sm text-white">Assigned</p>
           </div>
           <div className="text-center">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -552,7 +565,7 @@ export default function EmployeeDashboard() {
                 {tasks.filter(t => t.status === 'accepted').length}
               </span>
             </div>
-            <p className="text-sm text-gray-600">Accepted</p>
+            <p className="text-sm text-white">Accepted</p>
           </div>
           <div className="text-center">
             <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -560,7 +573,7 @@ export default function EmployeeDashboard() {
                 {tasks.filter(t => t.status === 'in-progress').length}
               </span>
             </div>
-            <p className="text-sm text-gray-600">In Progress</p>
+            <p className="text-sm text-white">In Progress</p>
           </div>
           <div className="text-center">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -568,8 +581,9 @@ export default function EmployeeDashboard() {
                 {tasks.filter(t => t.status === 'completed' || t.status === 'delivered').length}
               </span>
             </div>
-            <p className="text-sm text-gray-600">Completed</p>
+            <p className="text-sm text-white">Completed</p>
           </div>
+        </div>
         </div>
       </div>
 
