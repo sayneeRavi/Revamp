@@ -384,9 +384,10 @@ export default function EmployeeDashboard() {
             onClick={() => setActiveTab(id as any)}
             className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${
               activeTab === id 
-                ? 'bg-blue-600 text-white' 
+                ? 'text-[#000042]' 
                 : 'text-gray-300 hover:bg-blue-900 hover:text-white'
             }`}
+            style={activeTab === id ? { backgroundColor: '#cde2ee' } : {}}
           >
             <Icon className="w-5 h-5 mr-3" />
             {label}
