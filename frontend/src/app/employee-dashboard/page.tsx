@@ -893,7 +893,7 @@ export default function EmployeeDashboard() {
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar />
       <div className="flex-1 flex flex-col ml-64">
-        <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 fixed top-0 right-0 left-64 z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/">
@@ -920,12 +920,14 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <AnimatePresence mode="wait">
-          {activeTab === 'dashboard' && <DashboardTab />}
-          {activeTab === 'tasks' && <TasksTab />}
-          {activeTab === 'profile' && <ProfileTab />}
-          {activeTab === 'history' && <HistoryTab />}
-        </AnimatePresence>
+        <div className="mt-[73px]">
+          <AnimatePresence mode="wait">
+            {activeTab === 'dashboard' && <DashboardTab />}
+            {activeTab === 'tasks' && <TasksTab />}
+            {activeTab === 'profile' && <ProfileTab />}
+            {activeTab === 'history' && <HistoryTab />}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
