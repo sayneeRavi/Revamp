@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment and Local Config Files ###
+.env
+.env.local
+*.env
+application-local.properties
+setup-env.local.sh
+setup-env.sh

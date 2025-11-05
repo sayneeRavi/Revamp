@@ -1,0 +1,14 @@
+# Spring Boot server
+server.port=8081
+
+# Primary MongoDB connection for auth/users
+# Replace with your MongoDB connection string
+spring.data.mongodb.uri=mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/localEAD?retryWrites=true&w=majority
+
+# JWT Configuration
+# Generate a secure secret key for production
+jwt.secret=YOUR_JWT_SECRET_KEY_HERE
+jwt.expirationMs=86400000
+
+logging.level.org.springframework.web=INFO
+

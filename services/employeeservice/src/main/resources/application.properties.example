@@ -1,0 +1,9 @@
+# Spring Boot server
+server.port=8083
+
+# Employee Details MongoDB connection
+# Replace with your MongoDB connection string
+spring.data.mongodb.uri=mongodb+srv://USERNAME:PASSWORD@cluster.mongodb.net/EAD-Employes?retryWrites=true&w=majority
+
+logging.level.org.springframework.web=INFO
+
