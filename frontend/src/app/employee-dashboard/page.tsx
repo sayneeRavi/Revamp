@@ -455,7 +455,7 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#00571cff', borderColor: '#00571cff' }}>
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: 'git ', borderColor: '#00571cff' }}>
           <div className="flex items-center">
             <div className="p-3 bg-green-100 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600" />
@@ -598,26 +598,15 @@ export default function EmployeeDashboard() {
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Tasks</h3>
         <div className="space-y-3">
           {tasks.slice(0, 3).map((task) => (
-            <div 
-              key={task.id} 
-              className="flex items-center justify-between p-3 rounded-lg" 
-              style={{ 
-                backgroundColor: 
-                  task.status === 'in-progress' ? '#6c4133ff' :
-                  task.status === 'completed' ? '#00571cff' :
-                  task.status === 'delivered' ? '#a855f7' :
-                  task.status === 'assigned' ? '#eab308' :
-                  task.status === 'accepted' ? '#3b82f6' : 'rgba(0, 0, 0, 0.4)'
-              }}
-            >
+            <div key={task.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-3 h-3 rounded-full"
                   style={{
                     backgroundColor: 
-                      task.status === 'in-progress' ? '#ffffff' :
-                      task.status === 'completed' ? '#ffffff' :
-                      task.status === 'delivered' ? '#ffffff' : '#ffffff'
+                      task.status === 'in-progress' ? '#6c4133ff' :
+                      task.status === 'completed' ? '#00571cff' :
+                      task.status === 'delivered' ? '#a855f7' : '#9ca3af'
                   }}
                 ></div>
                 <div>
@@ -626,10 +615,14 @@ export default function EmployeeDashboard() {
                 </div>
               </div>
               <span 
-                className="px-2 py-1 rounded-full text-xs font-medium"
+                className="px-2 py-1 rounded-full text-xs font-medium text-white"
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff'
+                  backgroundColor: 
+                    task.status === 'in-progress' ? '#6c4133ff' :
+                    task.status === 'completed' ? '#00571cff' :
+                    task.status === 'delivered' ? '#a855f7' : 
+                    task.status === 'assigned' ? '#eab308' :
+                    task.status === 'accepted' ? '#3b82f6' : '#6b7280'
                 }}
               >
                 {task.status.replace('-', ' ')}
