@@ -441,42 +441,42 @@ export default function EmployeeDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-10">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#091c54ff', borderColor: '#091c54ff' }}>
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
               <Wrench className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Tasks</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-white">Active Tasks</p>
+              <p className="text-2xl font-bold text-white">
                 {tasks.filter(t => t.status === 'in-progress').length}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#00571cff', borderColor: '#00571cff' }}>
           <div className="flex items-center">
             <div className="p-3 bg-green-100 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Completed Today</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-white">Completed Today</p>
+              <p className="text-2xl font-bold text-white">
                 {tasks.filter(t => t.status === 'completed' || t.status === 'delivered').length}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#6c4133ff', borderColor: '#6c4133ff' }}>
           <div className="flex items-center">
             <div className="p-3 bg-orange-100 rounded-lg">
               <Timer className="w-6 h-6 text-orange-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Hours Worked</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-white">Hours Worked</p>
+              <p className="text-2xl font-bold text-white">
                 {currentTimeLog ? formatDuration(currentTimeLog.startTime).split('h')[0] : '0'}h
               </p>
             </div>
