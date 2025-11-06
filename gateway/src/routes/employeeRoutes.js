@@ -1,7 +1,7 @@
 const express = require("express");
 
 const router = express.Router();
-const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE || "http://localhost:8083";
+const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE || "http://localhost:8082";
 
 // Node.js 18+ has built-in fetch, otherwise use node-fetch
 const fetch = globalThis.fetch || require("node-fetch");

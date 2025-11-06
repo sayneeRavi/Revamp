@@ -13,8 +13,16 @@ router.post("/start", async (req, res) => {
       body: JSON.stringify(req.body),
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Start time tracking error:", err);
     res.status(500).json({ message: "Gateway error" });
@@ -28,8 +36,16 @@ router.post("/stop/:timeLogId", async (req, res) => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Stop time tracking error:", err);
     res.status(500).json({ message: "Gateway error" });
@@ -43,8 +59,16 @@ router.post("/pause/:timeLogId", async (req, res) => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Pause time tracking error:", err);
     res.status(500).json({ message: "Gateway error" });
@@ -58,8 +82,16 @@ router.post("/resume/:timeLogId", async (req, res) => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Resume time tracking error:", err);
     res.status(500).json({ message: "Gateway error" });
@@ -73,8 +105,16 @@ router.get("/employee/:employeeId", async (req, res) => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Get employee time logs error:", err);
     res.status(500).json({ message: "Gateway error" });
@@ -88,8 +128,16 @@ router.get("/active/:employeeId", async (req, res) => {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await backendRes.json();
-    res.status(backendRes.status).json(data);
+    const txt = await backendRes.text();
+    if (!txt) {
+      return res.status(backendRes.status).end();
+    }
+    try {
+      const data = JSON.parse(txt);
+      return res.status(backendRes.status).json(data);
+    } catch (_) {
+      return res.status(backendRes.status).send(txt);
+    }
   } catch (err) {
     console.error("Get active time log error:", err);
     res.status(500).json({ message: "Gateway error" });

@@ -54,6 +54,7 @@ export default function EmployeeDashboard() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [notifications, setNotifications] = useState<any[]>([]);
   const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL as string;
+  const USE_MOCK = (process.env.NEXT_PUBLIC_USE_MOCK || '').toLowerCase() === 'true';
   const [employeeId, setEmployeeId] = useState<string>('EMP001');
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function EmployeeDashboard() {
       });
       setEmployeeId('EMP001');
     }
-    // Attempt to load from API; fallback to mock data
+    // Load from API (no automatic mock fallback unless explicitly enabled)
     fetchTasks();
   }, []);
 
@@ -85,6 +86,10 @@ export default function EmployeeDashboard() {
         // Try active first
         const activeRes = await fetch(`${GATEWAY_URL}/api/time-tracking/active/${employeeId}`, { cache: 'no-store' });
         if (activeRes.ok) {
+          if (activeRes.status === 204) {
+            // No active time log
+            throw new Error('No active time log');
+          }
           const log = await activeRes.json();
           const tl: TimeLog = {
             id: log.id,
@@ -127,6 +132,13 @@ export default function EmployeeDashboard() {
     loadCurrentLog();
   }, [employeeId, GATEWAY_URL]);
 
+  // Refetch tasks when employeeId or gateway changes so we don't wait for the next poll
+  useEffect(() => {
+    if (employeeId && GATEWAY_URL) {
+      fetchTasks();
+    }
+  }, [employeeId, GATEWAY_URL]);
+
   const fetchTasks = async () => {
     try {
       if (!GATEWAY_URL) throw new Error('GATEWAY_URL not set');
@@ -149,8 +161,13 @@ export default function EmployeeDashboard() {
       })) as Task[];
       setTasks(normalized);
     } catch (e) {
-      // Fallback to mock data for dev
-      loadMockData();
+      // Only use mock data when explicitly enabled for development
+      if (USE_MOCK) {
+        loadMockData();
+      } else {
+        console.warn('Task fetch failed and mock fallback is disabled:', e);
+        setTasks([]);
+      }
     }
   };
 
@@ -215,6 +232,15 @@ export default function EmployeeDashboard() {
   };
 
   const greeting = getGreeting();
+
+  // Poll for new/updated tasks periodically so admin assignments appear without refresh
+  useEffect(() => {
+    const pollMs = 20000; // 20s
+    const timer = setInterval(() => {
+      fetchTasks();
+    }, pollMs);
+    return () => clearInterval(timer);
+  }, [employeeId, GATEWAY_URL]);
 
   const handleTaskAction = async (taskId: string, action: 'accept' | 'reject' | 'start' | 'complete' | 'deliver') => {
     try {
@@ -758,7 +784,11 @@ export default function EmployeeDashboard() {
       
       <div className="relative z-10 mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">My Tasks</h1>
-        <p className="text-gray-600">Manage your assigned tasks and track progress</p>
+        <p className="text-gray-600 flex items-center gap-2">Manage your assigned tasks and track progress
+          <span className={`ml-2 px-2 py-0.5 rounded text-xs ${USE_MOCK ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+            {USE_MOCK ? 'Mock data (dev)' : 'Live data'}
+          </span>
+        </p>
       </div>
 
       <div className="space-y-4 relative z-10">
@@ -773,11 +803,11 @@ export default function EmployeeDashboard() {
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
                   <h3 className="text-lg font-semibold text-gray-800">{task.customerName}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                    {task.priority}
-                  </span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                     {task.status.replace('-', ' ')}
+                  </span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${task.serviceType === 'service' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}`}>
+                    {task.serviceType.charAt(0).toUpperCase() + task.serviceType.slice(1)}
                   </span>
                 </div>
                 <p className="text-gray-600 mb-2">{task.vehicleInfo}</p>
