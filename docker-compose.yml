@@ -1,0 +1,46 @@
+version: "3.9"
+services:
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: revamp-gateway
+    environment:
+      - PORT=4000
+      - AUTH_SERVICE=${AUTH_SERVICE:-http://authservice:8081}
+      - EMPLOYEE_SERVICE=${EMPLOYEE_SERVICE:-http://employeeservice:8082}
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: revamp-frontend
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_GATEWAY_URL=${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+  authservice:
+    build:
+      context: ./services/authservice
+      dockerfile: Dockerfile
+    container_name: revamp-authservice
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  employeeservice:
+    build:
+      context: ./services/employeeservice
+      dockerfile: Dockerfile
+    container_name: revamp-employeeservice
+    ports:
+      - "8082:8082"
+    restart: unless-stopped

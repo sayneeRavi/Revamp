@@ -133,6 +133,7 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <mainClass>com.revamp.employee.EmployeeServiceApplication</mainClass>
                 </configuration>
             </plugin>
 

@@ -482,9 +482,9 @@ export default function EmployeeDashboard() {
   };
 
   const Sidebar = () => (
-    <div className="w-64 bg-[#000042] shadow-lg rounded-l-2xl p-6 fixed left-0 top-0 h-screen overflow-y-auto">
+    <div className="w-64 bg-gray-800 shadow-lg rounded-l-2xl p-6 fixed left-0 top-0 h-screen overflow-y-auto">
       <div className="flex items-center mb-8">
-        <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+        <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center text-white font-bold text-lg">
           {user?.username?.charAt(0) || 'E'}
         </div>
         <div className="ml-3">
@@ -505,10 +505,9 @@ export default function EmployeeDashboard() {
             onClick={() => setActiveTab(id as any)}
             className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${
               activeTab === id 
-                ? 'text-[#000042]' 
-                : 'text-gray-300 hover:bg-blue-900 hover:text-white'
+                ? 'bg-gray-700 text-white' 
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             }`}
-            style={activeTab === id ? { backgroundColor: '#cde2ee' } : {}}
           >
             <Icon className="w-5 h-5 mr-3" />
             {label}
@@ -562,13 +561,13 @@ export default function EmployeeDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-10">
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#000042', borderColor: '#000042' }}>
+        <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600">
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
               <Wrench className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-white">Active Tasks</p>
+              <p className="text-sm font-medium text-gray-300">Active Tasks</p>
               <p className="text-2xl font-bold text-white">
                 {tasks.filter(t => t.status === 'in-progress').length}
               </p>
@@ -576,13 +575,13 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: 'git ', borderColor: '#00571cff' }}>
+        <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600">
           <div className="flex items-center">
             <div className="p-3 bg-green-100 rounded-lg">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-white">Completed Today</p>
+              <p className="text-sm font-medium text-gray-300">Completed Today</p>
               <p className="text-2xl font-bold text-white">
                 {tasks.filter(t => t.status === 'completed' || t.status === 'delivered').length}
               </p>
@@ -590,13 +589,13 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl p-6 shadow-sm border" style={{ backgroundColor: '#6c4133ff', borderColor: '#6c4133ff' }}>
+        <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600">
           <div className="flex items-center">
             <div className="p-3 bg-orange-100 rounded-lg">
               <Timer className="w-6 h-6 text-orange-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-white">Hours Worked</p>
+              <p className="text-sm font-medium text-gray-300">Hours Worked</p>
               <p className="text-2xl font-bold text-white">
                 {currentTimeLog ? formatDuration(currentTimeLog.startTime).split('h')[0] : '0'}h
               </p>
@@ -607,7 +606,7 @@ export default function EmployeeDashboard() {
 
       {/* Current Task */}
       {currentTimeLog && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6 relative z-10">
+        <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200 mb-6 relative z-10">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">Currently Working On</h3>
             <div className="flex items-center space-x-2">
@@ -643,10 +642,7 @@ export default function EmployeeDashboard() {
                 ) : (
                   <button
                     onClick={() => resumeTimeTracking(currentTimeLog.taskId)}
-                    className="px-3 py-1 text-white rounded-lg transition-colors text-sm"
-                    style={{ backgroundColor: '#000053' }}
-                    onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#000042'}
-                    onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#000053'}
+                    className="px-3 py-1 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors text-sm"
                   >
                     <Play className="w-3 h-3 inline mr-1" />
                     Resume
@@ -669,29 +665,16 @@ export default function EmployeeDashboard() {
       )}
 
       {/* Workflow Status */}
-      <div className="rounded-xl p-6 shadow-sm border mb-6 relative z-10 overflow-hidden" style={{ borderColor: '#046169' }}>
-        {/* Solid base layer to block dashboard background */}
-        <div className="absolute inset-0" style={{ backgroundColor: '#041d3cff' }}></div>
-        
-        {/* Background Image */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ 
-            backgroundImage: 'url(/bg2.jpg)',
-            opacity: 0.7
-          }}
-        ></div>
-        
-        <div className="relative z-10">
-          <h3 className="text-lg font-semibold text-white mb-4">Workflow Status</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600 mb-6 relative z-10">
+        <h3 className="text-lg font-semibold text-white mb-4">Workflow Status</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
               <span className="text-yellow-600 font-bold">
                 {tasks.filter(t => t.status === 'assigned').length}
               </span>
             </div>
-            <p className="text-sm text-white">Assigned</p>
+            <p className="text-sm text-gray-300">Assigned</p>
           </div>
           <div className="text-center">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -699,66 +682,49 @@ export default function EmployeeDashboard() {
                 {tasks.filter(t => t.status === 'accepted').length}
               </span>
             </div>
-            <p className="text-sm text-white">Accepted</p>
+            <p className="text-sm text-gray-300">Accepted</p>
           </div>
           <div className="text-center">
-            <div 
-              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-              style={{ backgroundColor: '#6c4133ff' }}
-            >
-              <span className="font-bold text-white">
+            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <span className="text-orange-600 font-bold">
                 {tasks.filter(t => t.status === 'in-progress').length}
               </span>
             </div>
-            <p className="text-sm text-white">In Progress</p>
+            <p className="text-sm text-gray-300">In Progress</p>
           </div>
           <div className="text-center">
-            <div 
-              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-              style={{ backgroundColor: '#00571cff' }}
-            >
-              <span className="font-bold text-white">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <span className="text-green-600 font-bold">
                 {tasks.filter(t => t.status === 'completed' || t.status === 'delivered').length}
               </span>
             </div>
-            <p className="text-sm text-white">Completed</p>
+            <p className="text-sm text-gray-300">Completed</p>
           </div>
-        </div>
         </div>
       </div>
 
       {/* Recent Tasks */}
-      <div className="rounded-xl p-6 shadow-sm border border-white/30 relative z-10" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Tasks</h3>
+      <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600 relative z-10">
+        <h3 className="text-lg font-semibold text-white mb-4">Recent Tasks</h3>
         <div className="space-y-3">
           {tasks.slice(0, 3).map((task) => (
-            <div key={task.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+            <div key={task.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-600 border border-gray-500">
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-3 h-3 rounded-full"
                   style={{
                     backgroundColor: 
-                      task.status === 'in-progress' ? '#6c4133ff' :
-                      task.status === 'completed' ? '#00571cff' :
+                      task.status === 'in-progress' ? '#f97316' :
+                      task.status === 'completed' ? '#16a34a' :
                       task.status === 'delivered' ? '#a855f7' : '#9ca3af'
                   }}
                 ></div>
                 <div>
                   <p className="font-medium text-white">{task.customerName}</p>
-                  <p className="text-sm text-gray-200">{task.description}</p>
+                  <p className="text-sm text-gray-300">{task.description}</p>
                 </div>
               </div>
-              <span 
-                className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                style={{
-                  backgroundColor: 
-                    task.status === 'in-progress' ? '#6c4133ff' :
-                    task.status === 'completed' ? '#00571cff' :
-                    task.status === 'delivered' ? '#a855f7' : 
-                    task.status === 'assigned' ? '#eab308' :
-                    task.status === 'accepted' ? '#3b82f6' : '#6b7280'
-                }}
-              >
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                 {task.status.replace('-', ' ')}
               </span>
             </div>
@@ -783,8 +749,8 @@ export default function EmployeeDashboard() {
       <div className="absolute inset-0 bg-white/40"></div>
       
       <div className="relative z-10 mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">My Tasks</h1>
-        <p className="text-gray-600 flex items-center gap-2">Manage your assigned tasks and track progress
+        <h1 className="text-3xl font-bold text-white mb-2">My Tasks</h1>
+        <p className="text-gray-300 flex items-center gap-2">Manage your assigned tasks and track progress
           <span className={`ml-2 px-2 py-0.5 rounded text-xs ${USE_MOCK ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
             {USE_MOCK ? 'Mock data (dev)' : 'Live data'}
           </span>
@@ -797,41 +763,38 @@ export default function EmployeeDashboard() {
             key={task.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
+            className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-800">{task.customerName}</h3>
+                  <h3 className="text-lg font-semibold text-white">{task.customerName}</h3>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                     {task.status.replace('-', ' ')}
                   </span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${task.serviceType === 'service' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}`}>
-                    {task.serviceType.charAt(0).toUpperCase() + task.serviceType.slice(1)}
-                  </span>
                 </div>
-                <p className="text-gray-600 mb-2">{task.vehicleInfo}</p>
-                <p className="text-gray-800 mb-2">{task.description}</p>
+                <p className="text-gray-300 mb-2">{task.vehicleInfo}</p>
+                <p className="text-white mb-2">{task.description}</p>
                 {task.instructions && (
-                  <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded-lg">
-                    <strong>Instructions:</strong> {task.instructions}
+                  <p className="text-sm text-blue-300 bg-gray-600 p-2 rounded-lg border border-gray-500">
+                    <strong className="text-white">Instructions:</strong> <span className="text-gray-300">{task.instructions}</span>
                   </p>
                 )}
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500">Est. {task.estimatedHours}h</p>
-                <p className="text-sm text-gray-500">Due: {new Date(task.dueDate).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-300">Est. {task.estimatedHours}h</p>
+                <p className="text-sm text-gray-300">Due: {new Date(task.dueDate).toLocaleDateString()}</p>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 {task.serviceType === 'service' ? (
-                  <Car className="w-4 h-4 text-blue-600" />
+                  <Car className="w-4 h-4 text-blue-400" />
                 ) : (
-                  <Wrench className="w-4 h-4 text-orange-600" />
+                  <Wrench className="w-4 h-4 text-orange-400" />
                 )}
-                <span className="text-sm text-gray-600 capitalize">{task.serviceType}</span>
+                <span className="text-sm text-gray-300 capitalize">{task.serviceType}</span>
               </div>
 
               <div className="flex space-x-2">
@@ -846,7 +809,7 @@ export default function EmployeeDashboard() {
                     </button>
                     <button
                       onClick={() => handleTaskAction(task.id, 'reject')}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+                      className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
                     >
                       <XCircle className="w-4 h-4 mr-2" />
                       Reject
@@ -857,7 +820,7 @@ export default function EmployeeDashboard() {
                 {task.status === 'accepted' && (
                   <button
                     onClick={() => startTimeTracking(task.id)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Start Work & Timer
@@ -881,10 +844,7 @@ export default function EmployeeDashboard() {
                               stopTimeTracking();
                               handleTaskAction(task.id, 'complete');
                             }}
-                            className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
-                            style={{ backgroundColor: '#11823b' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                           >
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Finish & Complete
@@ -894,10 +854,7 @@ export default function EmployeeDashboard() {
                         <>
                           <button
                             onClick={() => resumeTimeTracking(task.id)}
-                            className="px-3 py-2 text-white rounded-lg transition-colors flex items-center"
-                            style={{ backgroundColor: '#000053' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#000042'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#000053'}
+                            className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
                           >
                             <Play className="w-4 h-4 mr-2" />
                             Resume Timer
@@ -907,10 +864,7 @@ export default function EmployeeDashboard() {
                               stopTimeTracking();
                               handleTaskAction(task.id, 'complete');
                             }}
-                            className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
-                            style={{ backgroundColor: '#11823b' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                           >
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Finish & Complete
@@ -921,10 +875,7 @@ export default function EmployeeDashboard() {
                       <>
                         <button
                           onClick={() => resumeTimeTracking(task.id)}
-                          className="px-3 py-2 text-white rounded-lg transition-colors flex items-center"
-                          style={{ backgroundColor: '#000053' }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#000042'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#000053'}
+                          className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
                         >
                           <Play className="w-4 h-4 mr-2" />
                           Resume Timer
@@ -934,10 +885,7 @@ export default function EmployeeDashboard() {
                             stopTimeTracking();
                             handleTaskAction(task.id, 'complete');
                           }}
-                          className="px-4 py-2 text-white rounded-lg transition-colors flex items-center"
-                          style={{ backgroundColor: '#11823b' }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0f6e32'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#11823b'}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                         >
                           <CheckCircle className="w-4 h-4 mr-2" />
                           Finish & Complete
@@ -1047,7 +995,7 @@ export default function EmployeeDashboard() {
         </div>
 
         <div className="mt-6 pt-6 border-t border-gray-200">
-          <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          <button className="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors">
             Save Changes
           </button>
           <audio id="bg-audio" src="/music/theme5.mp3" loop  />
@@ -1101,14 +1049,14 @@ export default function EmployeeDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-yellow-50 flex">
       <Sidebar />
       <div className="flex-1 flex flex-col ml-64">
         <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 fixed top-0 right-0 left-64 z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/">
-                <button className="px-3 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                <button className="px-3 py-2 text-sm rounded-lg bg-gray-800 text-white hover:bg-gray-900 transition">
                   ← Back to Home
                 </button>
               </Link>
