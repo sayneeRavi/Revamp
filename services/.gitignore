@@ -39,6 +39,11 @@ next-env.d.ts
 # Paths are relative to services/ directory
 authservice/src/main/resources/application.properties
 employeeservice/src/main/resources/application.properties
+customerservice/src/main/resources/application.properties
+customerservice/src/main/resources/application-dev.properties
+customerservice/src/main/resources/application-prod.properties
+adminservice/src/main/resources/application.properties
+bookingservice/src/main/resources/application.properties
 
 # Maven build artifacts (compiled classes and build output)
 */target/

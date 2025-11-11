@@ -2,7 +2,7 @@ const express = require("express");
 const fetch = global.fetch;
 
 const router = express.Router();
-const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE || "http://localhost:8082";
+const EMPLOYEE_SERVICE = process.env.EMPLOYEE_SERVICE || "http://localhost:8083";
 
 // Notification endpoints
 router.post("/admin", async (req, res) => {

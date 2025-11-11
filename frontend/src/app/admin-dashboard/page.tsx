@@ -28,7 +28,8 @@ import {
   Eye,
   Download,
   AlertCircle,
-  UserPlus
+  UserPlus,
+  Wrench
 } from "lucide-react";
 
 type Appointment = {
@@ -40,6 +41,8 @@ type Appointment = {
   time: string;
   status: "Pending" | "Approved" | "In Progress" | "Completed" | "Delivered";
   assignedEmployee?: string;
+  assignedEmployees?: string[];
+  assignedEmployeeIds?: string[]; // Employee IDs from API
   modifications?: string[];
   customerEmail?: string;
   estimatedCost?: number;
@@ -89,19 +92,37 @@ type Toast = {
 
 const AVAILABLE_SKILLS = ["Engine", "Electronics", "Bodywork", "Interior", "Painting", "Detailing", "Transmission", "Performance", "Audio", "Exhaust"];
 
+type ModificationService = {
+  id: string;
+  name: string;
+  description?: string;
+  estimatedCost?: number;
+  estimatedHours?: number;
+};
+
 export default function AdminDashboard() {
   const [user, setUser] = useState<TokenPayload | null>(null);
-  const [activeView, setActiveView] = useState<"dashboard" | "appointments" | "employees" | "analytics" | "profile" | "employee-logs">("dashboard");
+  const [activeView, setActiveView] = useState<"dashboard" | "appointments" | "employees" | "analytics" | "profile" | "employee-logs" | "modification-services">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showEditEmployeeModal, setShowEditEmployeeModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [notificationMessage, setNotificationMessage] = useState("");
-  const [showTimeSlotModal, setShowTimeSlotModal] = useState(false);
-  const [timeSlotData, setTimeSlotData] = useState({ date: "", time: "", action: "block" });
+  const [showUnavailableDateModal, setShowUnavailableDateModal] = useState(false);
+  const [unavailableDateData, setUnavailableDateData] = useState({ date: "", reason: "", description: "" });
+  const [unavailableDates, setUnavailableDates] = useState<Array<{id: string, date: string, reason: string, description?: string}>>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [modificationServices, setModificationServices] = useState<ModificationService[]>([]);
+  const [showModificationServiceModal, setShowModificationServiceModal] = useState(false);
+  const [modificationServiceForm, setModificationServiceForm] = useState({
+    name: "",
+    description: "",
+    estimatedCost: "",
+    estimatedHours: ""
+  });
   
   // Search and filter states
   const [appointmentSearch, setAppointmentSearch] = useState("");
@@ -118,69 +139,8 @@ export default function AdminDashboard() {
   });
   const [showPasswordSection, setShowPasswordSection] = useState(false);
 
-  // Enhanced mock data
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: "1",
-      customerName: "John Doe",
-      vehicle: "Toyota Camry 2020",
-      serviceType: "Service",
-      date: "2024-01-15",
-      time: "10:00 AM",
-      status: "Pending",
-      customerEmail: "john@example.com",
-      estimatedCost: 250
-    },
-    {
-      id: "2",
-      customerName: "Jane Smith",
-      vehicle: "Honda Civic 2019",
-      serviceType: "Modification",
-      date: "2024-01-16",
-      time: "2:00 PM",
-      status: "Approved",
-      assignedEmployee: "Mike Johnson",
-      modifications: ["Engine Tune-up", "Exhaust Upgrade"],
-      customerEmail: "jane@example.com",
-      estimatedCost: 1200
-    },
-    {
-      id: "3",
-      customerName: "Robert Brown",
-      vehicle: "Ford F-150 2021",
-      serviceType: "Service",
-      date: "2024-01-14",
-      time: "9:00 AM",
-      status: "In Progress",
-      assignedEmployee: "Sarah Williams",
-      customerEmail: "robert@example.com",
-      estimatedCost: 350
-    },
-    {
-      id: "4",
-      customerName: "Emily Davis",
-      vehicle: "BMW 3 Series 2022",
-      serviceType: "Modification",
-      date: "2024-01-13",
-      time: "11:00 AM",
-      status: "Completed",
-      assignedEmployee: "Mike Johnson",
-      modifications: ["Repainting", "Interior Upgrade"],
-      customerEmail: "emily@example.com",
-      estimatedCost: 2800
-    },
-    {
-      id: "5",
-      customerName: "Michael Chen",
-      vehicle: "Tesla Model 3 2023",
-      serviceType: "Service",
-      date: "2024-01-17",
-      time: "3:00 PM",
-      status: "Pending",
-      customerEmail: "michael@example.com",
-      estimatedCost: 300
-    }
-  ]);
+  // Appointments from database
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -228,15 +188,15 @@ export default function AdminDashboard() {
   ]);
 
   const [analytics, setAnalytics] = useState<Analytics>({
-    totalBookings: 156,
-    pendingApprovals: 2,
-    inProgress: 3,
-    completedToday: 1,
-    averageServiceTime: "3.5 hours",
-    averageModificationTime: "6.2 hours",
-    totalRevenue: 125000,
-    thisMonthRevenue: 18500,
-    lastMonthRevenue: 15200
+    totalBookings: 0,
+    pendingApprovals: 0,
+    inProgress: 0,
+    completedToday: 0,
+    averageServiceTime: "0 hours",
+    averageModificationTime: "0 hours",
+    totalRevenue: 0,
+    thisMonthRevenue: 0,
+    lastMonthRevenue: 0
   });
 
   const [employeeForm, setEmployeeForm] = useState({
@@ -247,6 +207,152 @@ export default function AdminDashboard() {
     skillSet: [] as string[],
     isEdit: false
   });
+
+  const formatTimeFromString = (timeStr: string): string => {
+    // Convert "08:00:00" to "8:00 AM" format
+    if (!timeStr) return "";
+    const [hours, minutes] = timeStr.split(":");
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const loadAppointments = async () => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const token = localStorage.getItem("token");
+      
+      console.log("Loading appointments from:", `${GATEWAY_URL}/api/bookings/appointments`);
+      
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/appointments`, {
+        method: "GET",
+        headers,
+      });
+      
+      console.log("Appointments response status:", response.status);
+      console.log("Appointments response headers:", Object.fromEntries(response.headers.entries()));
+      
+      if (response.ok) {
+        const appointmentsData = await response.json();
+        console.log("Appointments data received (raw):", appointmentsData);
+        console.log("Appointments data type:", typeof appointmentsData);
+        console.log("Is array?", Array.isArray(appointmentsData));
+        
+        // Ensure appointmentsData is an array
+        if (!Array.isArray(appointmentsData)) {
+          console.error("Expected array but got:", typeof appointmentsData, appointmentsData);
+          showToast("Invalid data format received from server. Expected array.", "error");
+          setAppointments([]);
+          return;
+        }
+        
+        // Map booking service appointments to admin dashboard format
+        const mappedAppointments: Appointment[] = appointmentsData.map((apt: any) => {
+          // Handle date format - LocalDate serializes as "YYYY-MM-DD"
+          let dateStr = "";
+          if (apt.date) {
+            if (typeof apt.date === 'string') {
+              dateStr = apt.date.split('T')[0]; // Remove time part if present
+            } else {
+              dateStr = String(apt.date);
+            }
+          }
+          
+          // Handle time format - use timeSlotStart and timeSlotEnd from Booking model
+          let timeStr = "";
+          if (apt.timeSlotStart && apt.timeSlotEnd) {
+            // Format: "08:00-11:00"
+            timeStr = `${apt.timeSlotStart}-${apt.timeSlotEnd}`;
+          } else if (apt.time) {
+            // Fallback to time if timeSlotStart/timeSlotEnd not available
+            if (typeof apt.time === 'string') {
+              timeStr = formatTimeFromString(apt.time);
+            } else {
+              timeStr = String(apt.time);
+            }
+          }
+          
+          // Handle vehicle - convert vehicleDetails object to string
+          let vehicleStr = "Unknown";
+          if (apt.vehicle) {
+            vehicleStr = apt.vehicle;
+          } else if (apt.vehicleDetails) {
+            const vd = apt.vehicleDetails;
+            const parts = [];
+            if (vd.make) parts.push(vd.make);
+            if (vd.model) parts.push(vd.model);
+            if (vd.registrationNumber) parts.push(`(${vd.registrationNumber})`);
+            if (parts.length > 0) {
+              vehicleStr = parts.join(" ");
+            }
+          }
+          
+          return {
+            id: apt.id || apt._id || "",
+            customerName: apt.customerName || "Unknown",
+            vehicle: vehicleStr,
+            serviceType: apt.serviceType || "Service",
+            date: dateStr,
+            time: timeStr,
+            status: apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1).toLowerCase() : "Pending",
+            assignedEmployee: apt.assignedEmployeeNames && Array.isArray(apt.assignedEmployeeNames) && apt.assignedEmployeeNames.length > 0 
+              ? apt.assignedEmployeeNames[0] 
+              : apt.assignedEmployee || "",
+            assignedEmployees: apt.assignedEmployeeNames && Array.isArray(apt.assignedEmployeeNames) 
+              ? apt.assignedEmployeeNames 
+              : (apt.assignedEmployee ? [apt.assignedEmployee] : []),
+            assignedEmployeeIds: apt.assignedEmployeeIds && Array.isArray(apt.assignedEmployeeIds) 
+              ? apt.assignedEmployeeIds 
+              : undefined,
+            modifications: apt.neededModifications && Array.isArray(apt.neededModifications) 
+              ? apt.neededModifications 
+              : (apt.modifications && Array.isArray(apt.modifications) ? apt.modifications : []),
+            customerEmail: apt.customerEmail || "",
+            estimatedCost: apt.estimatedCost || undefined
+          };
+        });
+        
+        setAppointments(mappedAppointments);
+        console.log(`Loaded ${mappedAppointments.length} appointment(s) successfully`);
+        console.log("Mapped appointments:", mappedAppointments);
+        
+        if (mappedAppointments.length === 0) {
+          showToast("No appointments found in database.", "info");
+        } else {
+          showToast(`Loaded ${mappedAppointments.length} appointment(s) successfully`, "success");
+        }
+      } else {
+        console.error("Failed to load appointments - Response status:", response.status);
+        const responseText = await response.text().catch(() => "No response body");
+        console.error("Failed to load appointments - Response text:", responseText);
+        
+        let errorData = {};
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (e) {
+          errorData = { message: responseText || `HTTP ${response.status} error` };
+        }
+        
+        console.error("Failed to load appointments - Error:", errorData);
+        showToast(`Failed to load appointments: ${(errorData as any).message || `HTTP ${response.status} error`}`, "error");
+        setAppointments([]);
+      }
+    } catch (error: any) {
+      console.error("Error loading appointments:", error);
+      console.error("Error stack:", error.stack);
+      showToast(`Error loading appointments: ${error.message || "Network error. Please check if the gateway and booking service are running."}`, "error");
+      setAppointments([]);
+    }
+  };
 
   const loadEmployees = async () => {
     try {
@@ -287,49 +393,109 @@ export default function AdminDashboard() {
       
       if (employeesResponse.ok) {
         const employeesData = await employeesResponse.json();
-        console.log("Employees data received:", employeesData);
+        console.log("Employees data received (raw):", employeesData);
+        console.log("Employees data type:", typeof employeesData);
+        console.log("Is array?", Array.isArray(employeesData));
+        
+        // Ensure employeesData is an array
+        if (!Array.isArray(employeesData)) {
+          console.error("Expected array but got:", typeof employeesData, employeesData);
+          showToast("Invalid data format received from server. Expected array.", "error");
+          setEmployees([]);
+          return;
+        }
         
         let detailsData = [];
         if (detailsResponse && detailsResponse.ok) {
-          detailsData = await detailsResponse.json();
-          console.log("Employee details data received:", detailsData);
+          const detailsResponseData = await detailsResponse.json();
+          console.log("Employee details data received (raw):", detailsResponseData);
+          console.log("Employee details data type:", typeof detailsResponseData);
+          console.log("Is array?", Array.isArray(detailsResponseData));
+          
+          if (Array.isArray(detailsResponseData)) {
+            detailsData = detailsResponseData;
+          } else {
+            console.warn("Employee details is not an array:", detailsResponseData);
+            detailsData = [];
+          }
         } else {
           if (detailsResponse && !detailsResponse.ok) {
-            const errorData = await detailsResponse.json().catch(() => ({}));
-            console.warn("Employee details fetch failed:", errorData);
+            const responseText = await detailsResponse.text().catch(() => "No response body");
+            console.warn("Employee details fetch failed - Status:", detailsResponse.status);
+            console.warn("Employee details fetch failed - Response:", responseText);
+            try {
+              const errorData = JSON.parse(responseText);
+              console.warn("Employee details fetch failed - Error:", errorData);
+            } catch (e) {
+              console.warn("Employee details fetch failed - Could not parse error response");
+            }
           }
           console.warn("Employee details not available");
-          showToast("Warning: Could not load employee details. Employees will be shown with basic information only.", "info");
+          // Don't show toast for missing details, it's not critical
         }
         
         // Create a map of userId -> employee details for quick lookup
         const detailsMap = new Map();
         if (Array.isArray(detailsData)) {
+          console.log(`Processing ${detailsData.length} employee detail records`);
           detailsData.forEach((detail: any) => {
             if (detail && detail.userId) {
+              console.log(`Employee detail for userId ${detail.userId}:`, {
+                fullName: detail.fullName,
+                email: detail.email,
+                skills: detail.skills,
+                skillsType: typeof detail.skills,
+                isSkillsArray: Array.isArray(detail.skills)
+              });
               detailsMap.set(detail.userId, detail);
             }
           });
+        } else {
+          console.warn("Employee details data is not an array:", detailsData);
         }
         
         // Convert User data to Employee format, merging with employee details
-        const employeeData: Employee[] = Array.isArray(employeesData) 
-          ? employeesData.map((user: any, index: number) => {
-              const details = detailsMap.get(user.id || user._id);
-              return {
-                id: user.id || user._id || String(index + 1),
-                name: details?.fullName || user.username || "Unknown",
-                email: user.email || "",
-                skillSet: details?.skills || (Array.isArray(details?.skills) ? details.skills : []),
-                availability: "Available" as const,
-                currentProjects: 0,
-                completedProjects: 0,
-                averageCompletionTime: "0 hours",
-                phone: details?.phoneNumber || undefined,
-                joinDate: undefined
-              };
-            })
-          : [];
+        const employeeData: Employee[] = employeesData.map((user: any, index: number) => {
+          const userId = user.id || user._id || String(index + 1);
+          const details = detailsMap.get(userId);
+          
+          console.log(`Processing employee ${userId}:`, {
+            hasDetails: !!details,
+            detailsSkills: details?.skills,
+            detailsSkillsType: typeof details?.skills,
+            isDetailsSkillsArray: Array.isArray(details?.skills)
+          });
+          
+          // Handle skills - can be array or undefined
+          let skillsArray: string[] = [];
+          if (details?.skills) {
+            if (Array.isArray(details.skills)) {
+              skillsArray = details.skills;
+              console.log(`✓ Employee ${userId} has ${skillsArray.length} skills:`, skillsArray);
+            } else if (typeof details.skills === 'string') {
+              // Handle case where skills might be stored as a string
+              skillsArray = [details.skills];
+              console.log(`⚠ Employee ${userId} skills stored as string, converted to array:`, skillsArray);
+            } else {
+              console.warn(`⚠ Employee ${userId} has unexpected skills type:`, typeof details.skills, details.skills);
+            }
+          } else {
+            console.log(`⚠ Employee ${userId} has no skills in details`);
+          }
+          
+          return {
+            id: userId,
+            name: details?.fullName || user.username || user.name || "Unknown",
+            email: user.email || "",
+            skillSet: skillsArray,
+            availability: "Available" as const,
+            currentProjects: 0,
+            completedProjects: 0,
+            averageCompletionTime: "0 hours",
+            phone: details?.phoneNumber || undefined,
+            joinDate: undefined
+          };
+        });
         
         console.log("Processed employee data:", employeeData);
         setEmployees(employeeData);
@@ -371,6 +537,77 @@ export default function AdminDashboard() {
     }
   };
 
+  // Calculate analytics from appointments data
+  const calculateAnalytics = useCallback((appointmentsData: Appointment[]) => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const totalBookings = appointmentsData.length;
+    const pendingApprovals = appointmentsData.filter(apt => apt.status === "Pending").length;
+    const inProgress = appointmentsData.filter(apt => apt.status === "In Progress").length;
+    const completedToday = appointmentsData.filter(apt => 
+      apt.status === "Completed" && apt.date === today
+    ).length;
+    
+    // Calculate revenue from appointments with estimated costs
+    const totalRevenue = appointmentsData.reduce((sum, apt) => {
+      return sum + (apt.estimatedCost || 0);
+    }, 0);
+    
+    // Calculate monthly revenue
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+    const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+    
+    const thisMonthRevenue = appointmentsData
+      .filter(apt => {
+        if (!apt.date) return false;
+        const aptDate = new Date(apt.date);
+        return aptDate.getMonth() === thisMonth && aptDate.getFullYear() === thisYear;
+      })
+      .reduce((sum, apt) => sum + (apt.estimatedCost || 0), 0);
+    
+    const lastMonthRevenue = appointmentsData
+      .filter(apt => {
+        if (!apt.date) return false;
+        const aptDate = new Date(apt.date);
+        return aptDate.getMonth() === lastMonth && aptDate.getFullYear() === lastMonthYear;
+      })
+      .reduce((sum, apt) => sum + (apt.estimatedCost || 0), 0);
+    
+    // Calculate average service times (simplified - would need actual completion data)
+    const serviceAppointments = appointmentsData.filter(apt => apt.serviceType === "Service");
+    const modificationAppointments = appointmentsData.filter(apt => apt.serviceType === "Modification");
+    
+    // For now, use default values or calculate from available data
+    // In a real system, you'd track actual completion times
+    const averageServiceTime = serviceAppointments.length > 0 ? "3.5 hours" : "0 hours";
+    const averageModificationTime = modificationAppointments.length > 0 ? "6.2 hours" : "0 hours";
+    
+    setAnalytics({
+      totalBookings,
+      pendingApprovals,
+      inProgress,
+      completedToday,
+      averageServiceTime,
+      averageModificationTime,
+      totalRevenue,
+      thisMonthRevenue,
+      lastMonthRevenue
+    });
+    
+    console.log("Analytics calculated:", {
+      totalBookings,
+      pendingApprovals,
+      inProgress,
+      completedToday,
+      totalRevenue,
+      thisMonthRevenue,
+      lastMonthRevenue
+    });
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -385,11 +622,65 @@ export default function AdminDashboard() {
       });
     }
     
-    // Load employees from database
+    // Load employees and appointments from database
     loadEmployees();
+    loadAppointments();
   }, []);
 
+  // Recalculate analytics when appointments change
+  useEffect(() => {
+    if (appointments.length >= 0) {
+      calculateAnalytics(appointments);
+    }
+  }, [appointments, calculateAnalytics]);
+
+  useEffect(() => {
+    if (activeView === "modification-services") {
+      loadModificationServices();
+    }
+  }, [activeView]);
+
+  // Load modification services when appointments view loads (to display modification names)
+  useEffect(() => {
+    if (activeView === "appointments" && modificationServices.length === 0) {
+      loadModificationServices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
+
   const greeting = getGreeting();
+
+  // Helper function to get modification service names from IDs
+  const getModificationServiceNames = (modificationIds: string[] | undefined): string[] => {
+    if (!modificationIds || modificationIds.length === 0) {
+      return [];
+    }
+    
+    // If modification services haven't loaded yet, return the IDs/names as-is
+    if (modificationServices.length === 0) {
+      console.warn("Modification services not loaded yet, returning IDs as-is:", modificationIds);
+      return modificationIds;
+    }
+    
+    return modificationIds
+      .map(id => {
+        // Try to find by ID first (most common case)
+        const service = modificationServices.find(s => s.id === id);
+        if (service) {
+          return service.name;
+        }
+        // If not found by ID, it might already be a name (for backward compatibility)
+        // Check if any service has this as a name
+        const serviceByName = modificationServices.find(s => s.name === id);
+        if (serviceByName) {
+          return serviceByName.name;
+        }
+        // If still not found, return the ID/name as-is (will display as-is)
+        console.warn(`Modification service not found for ID/name: ${id}`);
+        return id;
+      })
+      .filter(name => name); // Remove any null/undefined values
+  };
 
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     const id = Date.now().toString();
@@ -404,35 +695,139 @@ export default function AdminDashboard() {
     window.location.href = "/login";
   };
 
-  const approveAppointment = (id: string) => {
-    setAppointments(appointments.map(apt => 
-      apt.id === id ? { ...apt, status: "Approved" as const } : apt
-    ));
-    setAnalytics({ ...analytics, pendingApprovals: Math.max(0, analytics.pendingApprovals - 1) });
-    showToast("Appointment approved successfully!");
-  };
-
-  const rejectAppointment = (id: string) => {
-    setAppointments(appointments.filter(apt => apt.id !== id));
-    setAnalytics({ ...analytics, pendingApprovals: Math.max(0, analytics.pendingApprovals - 1) });
-    showToast("Appointment rejected", "info");
-  };
-
-  const assignEmployee = (appointmentId: string, employeeId: string) => {
-    const employee = employees.find(emp => emp.id === employeeId);
-    setAppointments(appointments.map(apt => 
-      apt.id === appointmentId 
-        ? { ...apt, status: "Approved" as const, assignedEmployee: employee?.name }
-        : apt
-    ));
-    if (employee) {
-      setEmployees(employees.map(emp =>
-        emp.id === employeeId ? { ...emp, currentProjects: emp.currentProjects + 1, availability: "Busy" as const } : emp
-      ));
+  const approveAppointment = async (id: string) => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/appointments/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Approved" }),
+      });
+      
+      if (response.ok) {
+        // Reload appointments to get updated data from database
+        await loadAppointments();
+        showToast("Appointment approved successfully!", "success");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to approve appointment:", errorData);
+        showToast(`Failed to approve appointment: ${(errorData as any).message || "Server error"}`, "error");
+      }
+    } catch (error: any) {
+      console.error("Error approving appointment:", error);
+      showToast(`Error approving appointment: ${error.message || "Network error"}`, "error");
     }
-    setShowAssignModal(false);
-    setAnalytics({ ...analytics, pendingApprovals: Math.max(0, analytics.pendingApprovals - 1) });
-    showToast(`Employee ${employee?.name} assigned successfully!`);
+  };
+
+  const rejectAppointment = async (id: string) => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      
+      // Cancel/delete the appointment
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/appointments/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        // Reload appointments to get updated data from database
+        await loadAppointments();
+        showToast("Appointment rejected and removed", "info");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to reject appointment:", errorData);
+        showToast(`Failed to reject appointment: ${(errorData as any).message || "Server error"}`, "error");
+      }
+    } catch (error: any) {
+      console.error("Error rejecting appointment:", error);
+      showToast(`Error rejecting appointment: ${error.message || "Network error"}`, "error");
+    }
+  };
+
+  const assignEmployees = async (appointmentId: string, employeeIds: string[]) => {
+    if (employeeIds.length === 0) {
+      showToast("Please select at least one employee", "error");
+      return;
+    }
+    
+    const selectedEmployees = employees.filter(emp => employeeIds.includes(emp.id));
+    const employeeNames = selectedEmployees.map(emp => emp.name);
+    
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      
+      console.log("Assigning employees to appointment:", appointmentId, employeeIds, employeeNames);
+      
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/appointments/${appointmentId}/assign-employees`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeIds: employeeIds,
+          employeeNames: employeeNames
+        }),
+      });
+      
+      console.log("Assign employees response status:", response.status);
+      console.log("Assign employees response ok:", response.ok);
+      
+      // Get response text first to handle potential parsing errors
+      const responseText = await response.text();
+      console.log("Assign employees response text:", responseText);
+      
+      let responseData: any = {};
+      try {
+        responseData = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Failed to parse assign employees response as JSON:", parseError);
+        console.error("Response text was:", responseText);
+        if (!response.ok) {
+          throw new Error(`Invalid response from server: ${responseText || "Empty response"}`);
+        }
+      }
+      
+      if (response.ok) {
+        console.log("Appointment updated successfully:", responseData);
+        
+        // Update local state
+        setAppointments(appointments.map(apt => 
+          apt.id === appointmentId 
+            ? { 
+                ...apt, 
+                status: "Approved" as const, 
+                assignedEmployee: employeeNames[0],
+                assignedEmployees: employeeNames
+              }
+            : apt
+        ));
+        
+        // Update employee availability
+        setEmployees(employees.map(emp =>
+          employeeIds.includes(emp.id) 
+            ? { ...emp, currentProjects: emp.currentProjects + 1, availability: "Busy" as const } 
+            : emp
+        ));
+        
+        setShowAssignModal(false);
+        setSelectedEmployeeIds([]);
+        setAnalytics({ ...analytics, pendingApprovals: Math.max(0, analytics.pendingApprovals - 1) });
+        showToast(`${employeeNames.length} employee(s) assigned successfully!`);
+        
+        // Reload appointments to get the latest data
+        loadAppointments();
+      } else {
+        const errorMessage = responseData.message || responseData.error || `HTTP ${response.status} error`;
+        console.error("Failed to assign employees:", {
+          status: response.status,
+          statusText: response.statusText,
+          data: responseData
+        });
+        showToast(`Failed to assign employees: ${errorMessage}`, "error");
+      }
+    } catch (error: any) {
+      console.error("Error assigning employees:", error);
+      showToast(`Error assigning employees: ${error.message || "Network error"}`, "error");
+    }
   };
 
   const toggleSkill = (skill: string) => {
@@ -580,6 +975,17 @@ export default function AdminDashboard() {
             skills: employeeForm.skillSet,
           });
           try {
+            console.log("Sending employee details request with payload:", {
+              userId: data.id,
+              fullName: employeeForm.name,
+              email: employeeForm.email,
+              phoneNumber: employeeForm.phone || "",
+              skills: employeeForm.skillSet,
+              skillsType: typeof employeeForm.skillSet,
+              skillsIsArray: Array.isArray(employeeForm.skillSet),
+              skillsLength: employeeForm.skillSet?.length
+            });
+            
             const detailsResponse = await fetch(`${GATEWAY_URL}/api/auth/employee-details`, {
               method: "POST",
               headers: {
@@ -590,24 +996,45 @@ export default function AdminDashboard() {
                 fullName: employeeForm.name,
                 email: employeeForm.email,
                 phoneNumber: employeeForm.phone || "",
-                skills: employeeForm.skillSet,
+                skills: employeeForm.skillSet || [],
               }),
             });
 
-            const detailsData = await detailsResponse.json();
+            console.log("Employee details response status:", detailsResponse.status);
+            console.log("Employee details response ok:", detailsResponse.ok);
             
-            console.log("Employee details save response:", detailsData);
+            // Get response text first to handle potential parsing errors
+            const responseText = await detailsResponse.text();
+            console.log("Employee details response text:", responseText);
+            
+            let detailsData: any = {};
+            try {
+              detailsData = responseText ? JSON.parse(responseText) : {};
+            } catch (parseError) {
+              console.error("Failed to parse employee details response as JSON:", parseError);
+              console.error("Response text was:", responseText);
+              throw new Error(`Invalid response from server: ${responseText || "Empty response"}`);
+            }
+            
+            console.log("Employee details save response (parsed):", detailsData);
             
             if (!detailsResponse.ok) {
-              console.error("Failed to save employee details:", detailsData);
-              showToast("Employee registered but details could not be saved: " + (detailsData.message || "Unknown error"), "error");
+              const errorMessage = detailsData.message || detailsData.error || `HTTP ${detailsResponse.status} error`;
+              console.error("Failed to save employee details:", {
+                status: detailsResponse.status,
+                statusText: detailsResponse.statusText,
+                data: detailsData
+              });
+              showToast(`Employee registered but details could not be saved: ${errorMessage}`, "error");
             } else {
               console.log("✓ Employee details saved successfully to EAD-Employes database");
+              console.log("Saved details:", detailsData);
               showToast("Employee registered successfully with all details saved!");
             }
           } catch (detailsError: any) {
             console.error("Error saving employee details:", detailsError);
-            showToast("Employee registered but some details could not be saved: " + detailsError.message, "error");
+            console.error("Error stack:", detailsError.stack);
+            showToast("Employee registered but some details could not be saved: " + (detailsError.message || "Unknown error"), "error");
           }
         } else {
           console.warn("Employee registered but no ID returned, cannot save employee details");
@@ -689,14 +1116,192 @@ export default function AdminDashboard() {
     setNotificationMessage("");
   };
 
-  const adjustTimeSlot = () => {
-    if (!timeSlotData.date || !timeSlotData.time) {
-      showToast("Please fill in all fields", "error");
+  const loadUnavailableDates = async () => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/unavailable-dates`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        const dates = await response.json();
+        setUnavailableDates(dates);
+      }
+    } catch (error) {
+      console.error("Error loading unavailable dates:", error);
+    }
+  };
+
+  const addUnavailableDate = async () => {
+    if (!unavailableDateData.date || !unavailableDateData.reason) {
+      showToast("Please fill in date and reason", "error");
       return;
     }
-    showToast(`Time slot ${timeSlotData.action}ed successfully!`);
-    setShowTimeSlotModal(false);
-    setTimeSlotData({ date: "", time: "", action: "block" });
+    
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/unavailable-dates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: unavailableDateData.date,
+          reason: unavailableDateData.reason,
+          description: unavailableDateData.description || ""
+        }),
+      });
+      
+      if (response.ok) {
+        showToast("Unavailable date added successfully!", "success");
+        setUnavailableDateData({ date: "", reason: "", description: "" });
+        loadUnavailableDates();
+      } else {
+        showToast("Failed to add unavailable date", "error");
+      }
+    } catch (error) {
+      showToast("Error adding unavailable date", "error");
+    }
+  };
+
+  const removeUnavailableDate = async (id: string) => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const response = await fetch(`${GATEWAY_URL}/api/bookings/unavailable-dates/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        showToast("Unavailable date removed successfully!", "success");
+        loadUnavailableDates();
+      } else {
+        showToast("Failed to remove unavailable date", "error");
+      }
+    } catch (error) {
+      showToast("Error removing unavailable date", "error");
+    }
+  };
+
+  const loadModificationServices = async () => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      console.log("Loading modification services from:", `${GATEWAY_URL}/api/admin/modification-services`);
+      
+      const response = await fetch(`${GATEWAY_URL}/api/admin/modification-services`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      console.log("Modification services response status:", response.status);
+      
+      if (response.ok) {
+        const services = await response.json();
+        console.log("Modification services data received (raw):", services);
+        console.log("Modification services data type:", typeof services);
+        console.log("Is array?", Array.isArray(services));
+        
+        // Ensure services is an array
+        if (Array.isArray(services)) {
+          setModificationServices(services);
+          console.log(`Loaded ${services.length} modification service(s) successfully`);
+        } else {
+          console.error("Expected array but got:", typeof services, services);
+          showToast("Invalid data format received for modification services. Expected array.", "error");
+          setModificationServices([]);
+        }
+      } else {
+        const responseText = await response.text().catch(() => "No response body");
+        console.error("Failed to load modification services - Status:", response.status);
+        console.error("Failed to load modification services - Response:", responseText);
+        
+        let errorData = {};
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (e) {
+          errorData = { message: responseText || `HTTP ${response.status} error` };
+        }
+        
+        console.error("Failed to load modification services - Error:", errorData);
+        showToast(`Failed to load modification services: ${(errorData as any).message || `HTTP ${response.status} error`}`, "error");
+        setModificationServices([]);
+      }
+    } catch (error: any) {
+      console.error("Error loading modification services:", error);
+      console.error("Error stack:", error.stack);
+      showToast(`Error loading modification services: ${error.message || "Network error. Please check if the gateway and admin service are running."}`, "error");
+      setModificationServices([]);
+    }
+  };
+
+  const addModificationService = async () => {
+    if (!modificationServiceForm.name.trim()) {
+      showToast("Please enter a service name", "error");
+      return;
+    }
+    
+    if (!modificationServiceForm.estimatedHours || !modificationServiceForm.estimatedHours.trim()) {
+      showToast("Please enter estimated hours", "error");
+      return;
+    }
+    
+    const estimatedHours = parseInt(modificationServiceForm.estimatedHours);
+    if (isNaN(estimatedHours) || estimatedHours <= 0) {
+      showToast("Estimated hours must be a positive number", "error");
+      return;
+    }
+    
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const requestBody: any = {
+        name: modificationServiceForm.name,
+        description: modificationServiceForm.description || "",
+        estimatedHours: estimatedHours,
+      };
+      
+      if (modificationServiceForm.estimatedCost) {
+        requestBody.estimatedCost = parseFloat(modificationServiceForm.estimatedCost);
+      }
+      
+      const response = await fetch(`${GATEWAY_URL}/api/admin/modification-services`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      
+      if (response.ok) {
+        showToast("Modification service added successfully!", "success");
+        setModificationServiceForm({ name: "", description: "", estimatedCost: "", estimatedHours: "" });
+        setShowModificationServiceModal(false);
+        loadModificationServices();
+      } else {
+        showToast("Failed to add modification service", "error");
+      }
+    } catch (error) {
+      showToast("Error adding modification service", "error");
+    }
+  };
+
+  const removeModificationService = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this modification service?")) {
+      return;
+    }
+    
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      const response = await fetch(`${GATEWAY_URL}/api/admin/modification-services/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        showToast("Modification service removed successfully!", "success");
+        loadModificationServices();
+      } else {
+        showToast("Failed to remove modification service", "error");
+      }
+    } catch (error) {
+      showToast("Error removing modification service", "error");
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -744,6 +1349,7 @@ export default function AdminDashboard() {
     { id: "employees", label: "Employees", icon: Users },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "employee-logs", label: "Employee Logs", icon: FileText },
+    { id: "modification-services", label: "Modification Services", icon: Wrench },
     { id: "profile", label: "Profile", icon: UserCircle },
   ];
 
@@ -756,11 +1362,14 @@ export default function AdminDashboard() {
           <p className="text-gray-500 mt-1">Welcome back! Here's what's happening today.</p>
         </div>
         <button
-          onClick={() => setShowTimeSlotModal(true)}
+          onClick={() => {
+            loadUnavailableDates();
+            setShowUnavailableDateModal(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 shadow-md transition-all"
         >
           <Settings className="w-4 h-4" />
-          Adjust Time Slots
+          Manage Unavailable Dates
         </button>
       </div>
 
@@ -840,6 +1449,11 @@ export default function AdminDashboard() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">{apt.vehicle} • {apt.serviceType}</p>
+                  {apt.serviceType === "Modification" && apt.modifications && apt.modifications.length > 0 && (
+                    <p className="text-xs text-purple-600 mt-1 font-medium">
+                      {getModificationServiceNames(apt.modifications).join(", ")}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">{apt.date} at {apt.time}</p>
                 </div>
                 {apt.estimatedCost && (
@@ -978,14 +1592,28 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-900">{apt.vehicle}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        apt.serviceType === "Service" 
-                          ? "bg-blue-100 text-blue-800" 
-                          : "bg-purple-100 text-purple-800"
-                      }`}>
-                        {apt.serviceType}
-                      </span>
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          apt.serviceType === "Service" 
+                            ? "bg-blue-100 text-blue-800" 
+                            : "bg-purple-100 text-purple-800"
+                        }`}>
+                          {apt.serviceType}
+                        </span>
+                        {apt.serviceType === "Modification" && apt.modifications && apt.modifications.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {getModificationServiceNames(apt.modifications).map((modName, idx) => (
+                              <span 
+                                key={idx}
+                                className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs border border-purple-200"
+                              >
+                                {modName}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{apt.date}</div>
@@ -996,7 +1624,11 @@ export default function AdminDashboard() {
                         {apt.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">{apt.assignedEmployee || "-"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">
+                      {apt.assignedEmployees && apt.assignedEmployees.length > 0 
+                        ? apt.assignedEmployees.join(", ")
+                        : apt.assignedEmployee || "-"}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {apt.estimatedCost ? (
                         <span className="font-semibold text-green-600">${apt.estimatedCost}</span>
@@ -1006,40 +1638,42 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        {apt.status === "Pending" && (
-                          <>
-                            <button
-                              onClick={() => approveAppointment(apt.id)}
-                              className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded"
-                              title="Approve"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedAppointment(apt);
-                                setShowAssignModal(true);
-                              }}
-                              className="text-green-600 hover:text-green-800 p-1 hover:bg-green-50 rounded"
-                              title="Assign"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => rejectAppointment(apt.id)}
-                              className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded"
-                              title="Reject"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
+                        {(apt.status === "Pending" || apt.status === "Approved") && (
+                          <button
+                            onClick={() => {
+                              setSelectedAppointment(apt);
+                              
+                              // Pre-select previously assigned employees
+                              let preSelectedIds: string[] = [];
+                              
+                              // First, try to get IDs from the appointment data if available
+                              if (apt.assignedEmployeeIds && Array.isArray(apt.assignedEmployeeIds) && apt.assignedEmployeeIds.length > 0) {
+                                preSelectedIds = apt.assignedEmployeeIds;
+                              } else if (apt.assignedEmployees && apt.assignedEmployees.length > 0) {
+                                // If no IDs, match employee names to get IDs
+                                preSelectedIds = employees
+                                  .filter(emp => apt.assignedEmployees?.includes(emp.name))
+                                  .map(emp => emp.id);
+                              } else if (apt.assignedEmployee) {
+                                // Single assigned employee
+                                const foundEmployee = employees.find(emp => emp.name === apt.assignedEmployee);
+                                if (foundEmployee) {
+                                  preSelectedIds = [foundEmployee.id];
+                                }
+                              }
+                              
+                              setSelectedEmployeeIds(preSelectedIds);
+                              setShowAssignModal(true);
+                            }}
+                            className={`px-3 py-1.5 text-white rounded-lg font-medium text-sm transition-colors ${
+                              (apt.assignedEmployees && apt.assignedEmployees.length > 0) || apt.assignedEmployee
+                                ? "bg-orange-600 hover:bg-orange-700"
+                                : "bg-green-600 hover:bg-green-700"
+                            }`}
+                          >
+                            {(apt.assignedEmployees && apt.assignedEmployees.length > 0) || apt.assignedEmployee ? "Reassign" : "Assign"}
+                          </button>
                         )}
-                        <button
-                          className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1525,6 +2159,81 @@ export default function AdminDashboard() {
     );
   };
 
+  // Modification Services View
+  const renderModificationServices = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Modification Services</h1>
+            <p className="text-gray-500 mt-1">Manage modification services available to customers</p>
+          </div>
+          <button
+            onClick={() => {
+              setModificationServiceForm({ name: "", description: "", estimatedCost: "", estimatedHours: "" });
+              setShowModificationServiceModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Service
+          </button>
+        </div>
+
+        {/* Services List */}
+        <div className="bg-white rounded-xl shadow-lg border">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Available Services</h2>
+            {modificationServices.length === 0 ? (
+              <div className="text-center py-12">
+                <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 text-lg">No modification services added yet</p>
+                <p className="text-gray-400 text-sm mt-2">Click "Add Service" to create your first service</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {modificationServices.map((service) => (
+                  <div
+                    key={service.id}
+                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-lg">{service.name}</h3>
+                        {service.description && (
+                          <p className="text-sm text-gray-600 mt-1">{service.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeModificationService(service.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Remove service"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex gap-4 text-sm text-gray-600 mt-3">
+                      {service.estimatedCost && (
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-4 h-4" />
+                          <span>${service.estimatedCost}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 font-semibold text-blue-600">
+                        <Clock className="w-4 h-4" />
+                        <span>{service.estimatedHours || 'N/A'} hrs</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Profile View
   const renderProfile = () => {
     const handleSaveProfile = () => {
@@ -1809,6 +2518,7 @@ export default function AdminDashboard() {
           {activeView === "employees" && renderEmployees()}
           {activeView === "analytics" && renderAnalytics()}
           {activeView === "employee-logs" && renderEmployeeLogs()}
+          {activeView === "modification-services" && renderModificationServices()}
           {activeView === "profile" && renderProfile()}
         </div>
       </div>
@@ -1844,16 +2554,22 @@ export default function AdminDashboard() {
       {showAssignModal && selectedAppointment && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowAssignModal(false)}
+          onClick={() => {
+            setShowAssignModal(false);
+            setSelectedEmployeeIds([]);
+          }}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all"
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 transform transition-all max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Assign Employee</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Assign Employees</h2>
               <button
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedEmployeeIds([]);
+                }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1864,52 +2580,127 @@ export default function AdminDashboard() {
               <p className="font-semibold text-gray-900">{selectedAppointment.customerName}</p>
               <p className="text-sm text-gray-700">{selectedAppointment.vehicle}</p>
               <p className="text-xs text-gray-500 mt-1">{selectedAppointment.serviceType} • {selectedAppointment.date} at {selectedAppointment.time}</p>
+              {selectedAppointment.serviceType === "Modification" && selectedAppointment.modifications && selectedAppointment.modifications.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Modification Services:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {getModificationServiceNames(selectedAppointment.modifications).map((modName, idx) => (
+                      <span 
+                        key={idx}
+                        className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs border border-purple-200"
+                      >
+                        {modName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
-              {employees.filter(emp => emp.availability === "Available").length === 0 ? (
+            <div className="space-y-2 mb-6 max-h-96 overflow-y-auto">
+              {employees.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium">No available employees</p>
-                  <p className="text-sm">All employees are currently busy</p>
+                  <p className="font-medium">No employees available</p>
+                  <p className="text-sm">Please add employees first</p>
                 </div>
               ) : (
-                employees
-                  .filter(emp => emp.availability === "Available")
-                  .map((emp) => (
-                    <button
+                employees.map((emp) => {
+                  const isSelected = selectedEmployeeIds.includes(emp.id);
+                  return (
+                    <div
                       key={emp.id}
-                      onClick={() => assignEmployee(selectedAppointment.id, emp.id)}
-                      className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedEmployeeIds(selectedEmployeeIds.filter(id => id !== emp.id));
+                        } else {
+                          setSelectedEmployeeIds([...selectedEmployeeIds, emp.id]);
+                        }
+                      }}
+                      className={`w-full text-left p-4 border-2 rounded-lg transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-green-500 bg-green-50"
+                          : "border-gray-200 hover:border-blue-500 hover:bg-blue-50"
+                      }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                          <div className="flex items-center gap-3 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                               {emp.name.charAt(0)}
                             </div>
-                            <div className="font-semibold text-gray-900 group-hover:text-blue-700">{emp.name}</div>
+                            <div>
+                              <div className={`font-semibold ${isSelected ? "text-green-700" : "text-gray-900"}`}>
+                                {emp.name}
+                              </div>
+                              <div className="text-sm text-gray-600">{emp.email}</div>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 ml-10">{emp.email}</div>
-                          <div className="mt-2 ml-10 flex flex-wrap gap-1">
-                            {emp.skillSet.map((skill, idx) => (
-                              <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                                {skill}
-                              </span>
-                            ))}
+                          <div className="ml-16">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-gray-600 uppercase">Skills:</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {emp.skillSet && emp.skillSet.length > 0 ? (
+                                emp.skillSet.map((skill, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm font-medium border border-blue-200"
+                                  >
+                                    {skill}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-gray-400 italic">No skills assigned</span>
+                              )}
+                            </div>
+                            <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                              <span>Availability: <span className={`font-medium ${
+                                emp.availability === "Available" ? "text-green-600" :
+                                emp.availability === "Busy" ? "text-red-600" : "text-gray-600"
+                              }`}>{emp.availability}</span></span>
+                              <span>Projects: <span className="font-medium">{emp.currentProjects}</span></span>
+                            </div>
                           </div>
                         </div>
-                        <CheckCircle2 className="w-5 h-5 text-gray-300 group-hover:text-blue-600" />
+                        {isSelected && (
+                          <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
+                        )}
                       </div>
-                    </button>
-                  ))
+                    </div>
+                  );
+                })
               )}
             </div>
-            <button
-              onClick={() => setShowAssignModal(false)}
-              className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
-            >
-              Cancel
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (selectedEmployeeIds.length === 0) {
+                    showToast("Please select at least one employee", "error");
+                    return;
+                  }
+                  assignEmployees(selectedAppointment.id, selectedEmployeeIds);
+                }}
+                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+              >
+                Assign {selectedEmployeeIds.length > 0 ? `(${selectedEmployeeIds.length})` : ""}
+              </button>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedEmployeeIds([]);
+                }}
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1973,14 +2764,14 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Time Slot Modal */}
-      {showTimeSlotModal && (
+      {/* Unavailable Date Modal */}
+      {showUnavailableDateModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowTimeSlotModal(false)}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          onClick={() => setShowUnavailableDateModal(false)}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all"
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 transform transition-all my-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
@@ -1988,72 +2779,206 @@ export default function AdminDashboard() {
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                   <Settings className="w-5 h-5 text-blue-600" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Adjust Time Slot</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Manage Unavailable Dates</h2>
               </div>
               <button
-                onClick={() => setShowTimeSlotModal(false)}
+                onClick={() => setShowUnavailableDateModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={timeSlotData.date}
-                  onChange={(e) => setTimeSlotData({ ...timeSlotData, date: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Time <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  value={timeSlotData.time}
-                  onChange={(e) => setTimeSlotData({ ...timeSlotData, time: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Action <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={timeSlotData.action}
-                  onChange={(e) => setTimeSlotData({ ...timeSlotData, action: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            
+            {/* Add New Unavailable Date */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Unavailable Date</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={unavailableDateData.date}
+                    onChange={(e) => setUnavailableDateData({ ...unavailableDateData, date: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Reason <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={unavailableDateData.reason}
+                    onChange={(e) => setUnavailableDateData({ ...unavailableDateData, reason: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  >
+                    <option value="">Select reason</option>
+                    <option value="Holiday">Holiday</option>
+                    <option value="Shop Closed">Shop Closed</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={unavailableDateData.description}
+                    onChange={(e) => setUnavailableDateData({ ...unavailableDateData, description: e.target.value })}
+                    placeholder="Enter description..."
+                    className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+                <button
+                  onClick={addUnavailableDate}
+                  disabled={!unavailableDateData.date || !unavailableDateData.reason}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md transition-all"
                 >
-                  <option value="block">🔒 Block Slot</option>
-                  <option value="unblock">🔓 Unblock Slot</option>
-                  <option value="modify">✏️ Modify Slot</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {timeSlotData.action === "block" && "Prevent bookings for this time slot"}
-                  {timeSlotData.action === "unblock" && "Make this time slot available for bookings"}
-                  {timeSlotData.action === "modify" && "Change the time slot details"}
-                </p>
+                  Add Unavailable Date
+                </button>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
+
+            {/* List of Unavailable Dates */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Existing Unavailable Dates</h3>
+              {unavailableDates.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No unavailable dates added yet</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {unavailableDates.map((date) => (
+                    <div key={date.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-gray-900">{new Date(date.date).toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-600">{date.reason}</p>
+                        {date.description && (
+                          <p className="text-xs text-gray-500 mt-1">{date.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeUnavailableDate(date.id)}
+                        className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
+                        title="Remove"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6">
               <button
-                onClick={adjustTimeSlot}
-                disabled={!timeSlotData.date || !timeSlotData.time}
-                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md transition-all"
+                onClick={() => setShowUnavailableDateModal(false)}
+                className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
               >
-                Confirm {timeSlotData.action === "block" ? "Block" : timeSlotData.action === "unblock" ? "Unblock" : "Modify"}
+                Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modification Service Modal */}
+      {showModificationServiceModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          onClick={() => setShowModificationServiceModal(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 transform transition-all my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Wrench className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Add Modification Service</h2>
+              </div>
               <button
-                onClick={() => setShowTimeSlotModal(false)}
-                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                onClick={() => setShowModificationServiceModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Service Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={modificationServiceForm.name}
+                  onChange={(e) => setModificationServiceForm({ ...modificationServiceForm, name: e.target.value })}
+                  className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="e.g., Engine Upgrade, Body Kit, Audio System"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={modificationServiceForm.description}
+                  onChange={(e) => setModificationServiceForm({ ...modificationServiceForm, description: e.target.value })}
+                  className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="Optional description of the service"
+                  rows={3}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Estimated Cost ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={modificationServiceForm.estimatedCost}
+                    onChange={(e) => setModificationServiceForm({ ...modificationServiceForm, estimatedCost: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Optional"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Estimated Hours <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={modificationServiceForm.estimatedHours}
+                    onChange={(e) => setModificationServiceForm({ ...modificationServiceForm, estimatedHours: e.target.value })}
+                    className="w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="e.g., 2, 4, 6"
+                    min="1"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Required: Enter the estimated number of hours for this service</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowModificationServiceModal(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
               >
                 Cancel
+              </button>
+              <button
+                onClick={addModificationService}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all shadow-md"
+              >
+                Add Service
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ package com.revamp.employee.employee.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 import com.mongodb.client.MongoClient;
@@ -18,7 +19,8 @@ public class MongoConfig {
     private String databaseName;
 
     @Bean
-    public MongoTemplate mongoTemplate() {
+    @Primary
+    public MongoClient mongoClient() {
         // Validate MongoDB URI is set
         if (mongoUri == null || mongoUri.trim().isEmpty()) {
             throw new IllegalStateException(
@@ -33,6 +35,19 @@ public class MongoConfig {
             );
         }
         
+        System.out.println("========================================");
+        System.out.println("Creating MongoClient for EmployeeService");
+        System.out.println("MongoDB URI: " + mongoUri.replaceAll(":[^:@]+@", ":****@"));
+        System.out.println("========================================");
+        
+        MongoClient mongoClient = MongoClients.create(mongoUri);
+        System.out.println("✓ MongoClient created successfully");
+        return mongoClient;
+    }
+
+    @Bean
+    @Primary
+    public MongoTemplate mongoTemplate(MongoClient mongoClient) {
         // Extract database name from URI if present, otherwise use configured default
         String dbName = databaseName;
         if (mongoUri.contains("/")) {
@@ -50,12 +65,11 @@ public class MongoConfig {
         System.out.println("========================================");
         System.out.println("Creating mongoTemplate for EmployeeService");
         System.out.println("Database Name: " + dbName);
-        System.out.println("Collection: Details");
+        System.out.println("Collections: employees, Details, tasks, notifications, timelogs");
         System.out.println("========================================");
         
-        MongoClient mongoClient = MongoClients.create(mongoUri);
         MongoTemplate template = new MongoTemplate(mongoClient, dbName);
-        System.out.println("✓ mongoTemplate created successfully");
+        System.out.println("✓ mongoTemplate created successfully for database: " + dbName);
         return template;
     }
 }

@@ -70,7 +70,8 @@ public class EmployeeDetail {
     }
 
     public String[] getSkills() {
-        return skills;
+        // Return empty array instead of null to avoid issues in frontend
+        return skills != null ? skills : new String[0];
     }
 
     public void setSkills(String[] skills) {
