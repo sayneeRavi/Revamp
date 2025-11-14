@@ -66,4 +66,94 @@ router.put("/:notificationId/read", async (req, res) => {
   }
 });
 
+// Employee notification endpoints
+router.get("/employee/:employeeId", async (req, res) => {
+  try {
+    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/notifications/employee/${req.params.employeeId}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!backendRes.ok) {
+      return res.status(backendRes.status).json({ message: "Failed to fetch notifications" });
+    }
+
+    const data = await backendRes.json();
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("Get employee notifications error:", err);
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed')) {
+      return res.status(503).json({ message: "Employee service unavailable" });
+    }
+    res.status(500).json({ message: "Gateway error" });
+  }
+});
+
+router.get("/employee/:employeeId/unread", async (req, res) => {
+  try {
+    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/notifications/employee/${req.params.employeeId}/unread`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!backendRes.ok) {
+      return res.status(backendRes.status).json({ message: "Failed to fetch unread notifications" });
+    }
+
+    const data = await backendRes.json();
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("Get unread employee notifications error:", err);
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed')) {
+      return res.status(503).json({ message: "Employee service unavailable" });
+    }
+    res.status(500).json({ message: "Gateway error" });
+  }
+});
+
+// Customer notification endpoints
+router.get("/customer/:customerId", async (req, res) => {
+  try {
+    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/notifications/customer/${req.params.customerId}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!backendRes.ok) {
+      return res.status(backendRes.status).json({ message: "Failed to fetch customer notifications" });
+    }
+
+    const data = await backendRes.json();
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("Get customer notifications error:", err);
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed')) {
+      return res.status(503).json({ message: "Employee service unavailable" });
+    }
+    res.status(500).json({ message: "Gateway error" });
+  }
+});
+
+router.get("/customer/:customerId/unread", async (req, res) => {
+  try {
+    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/notifications/customer/${req.params.customerId}/unread`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!backendRes.ok) {
+      return res.status(backendRes.status).json({ message: "Failed to fetch unread customer notifications" });
+    }
+
+    const data = await backendRes.json();
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("Get unread customer notifications error:", err);
+    if (err.code === 'ECONNREFUSED' || err.message?.includes('fetch failed')) {
+      return res.status(503).json({ message: "Employee service unavailable" });
+    }
+    res.status(500).json({ message: "Gateway error" });
+  }
+});
+
 module.exports = router;

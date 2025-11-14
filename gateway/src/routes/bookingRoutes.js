@@ -20,8 +20,14 @@ router.use("/bookings", async (req, res) => {
 		// Check if this is an appointments endpoint - if so, add /v1
 		let url;
 		if (targetPath.startsWith("appointments")) {
-			// Forward to /api/bookings/appointments/v1/...
-			url = `${BOOKING_SERVICE}/api/bookings/${targetPath.replace(/^appointments/, "appointments/v1")}`;
+			// Check if /v1 is already in the path
+			if (targetPath.includes("/v1/")) {
+				// Already has /v1, forward as-is
+				url = `${BOOKING_SERVICE}/api/bookings/${targetPath}`;
+			} else {
+				// Forward to /api/bookings/appointments/v1/...
+				url = `${BOOKING_SERVICE}/api/bookings/${targetPath.replace(/^appointments/, "appointments/v1")}`;
+			}
 		} else {
 			// For other booking routes, forward as-is
 			url = targetPath 

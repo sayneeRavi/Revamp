@@ -32,7 +32,38 @@ router.use("/admin", async (req, res) => {
 			fetchOptions.body = JSON.stringify(req.body);
 		}
 
-		const response = await fetch(url, fetchOptions);
+		let response;
+		try {
+			response = await fetch(url, fetchOptions);
+		} catch (fetchError) {
+			console.error("[Gateway] Fetch error connecting to admin service:", fetchError);
+			console.error("[Gateway] Admin service URL:", ADMIN_SERVICE);
+			console.error("[Gateway] Error details:", {
+				name: fetchError.name,
+				message: fetchError.message,
+				code: fetchError.code,
+				cause: fetchError.cause
+			});
+			
+			if (fetchError.code === 'ECONNREFUSED' || fetchError.message?.includes('ECONNREFUSED') || fetchError.message?.includes('fetch failed')) {
+				return res.status(503).json({ 
+					message: "Admin service is currently unavailable. Please ensure the admin service is running on port 8085.",
+					error: "AdminServiceUnavailable",
+					service: "admin-service",
+					serviceUrl: ADMIN_SERVICE,
+					details: "The admin service could not be reached. Please check if the service is running."
+				});
+			}
+			
+			// Return a more descriptive error for other fetch failures
+			return res.status(503).json({ 
+				message: `Failed to connect to admin service: ${fetchError.message || 'Unknown error'}`,
+				error: "AdminServiceConnectionError",
+				service: "admin-service",
+				serviceUrl: ADMIN_SERVICE,
+				details: fetchError.message
+			});
+		}
 
 		if (!response.ok) {
 			console.error(`[Gateway] Admin service returned error: ${response.status} ${response.statusText}`);

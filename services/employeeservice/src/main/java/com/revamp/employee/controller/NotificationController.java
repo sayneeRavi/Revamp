@@ -48,4 +48,30 @@ public class NotificationController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    // Employee notification endpoints
+    @GetMapping("/employee/{employeeId}")
+    public ResponseEntity<List<Notification>> getEmployeeNotifications(@PathVariable String employeeId) {
+        List<Notification> notifications = notificationService.getEmployeeNotifications(employeeId);
+        return ResponseEntity.ok(notifications);
+    }
+
+    @GetMapping("/employee/{employeeId}/unread")
+    public ResponseEntity<List<Notification>> getUnreadEmployeeNotifications(@PathVariable String employeeId) {
+        List<Notification> notifications = notificationService.getUnreadEmployeeNotifications(employeeId);
+        return ResponseEntity.ok(notifications);
+    }
+
+    // Customer notification endpoints
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<List<Notification>> getCustomerNotifications(@PathVariable String customerId) {
+        List<Notification> notifications = notificationService.getCustomerNotifications(customerId);
+        return ResponseEntity.ok(notifications);
+    }
+
+    @GetMapping("/customer/{customerId}/unread")
+    public ResponseEntity<List<Notification>> getUnreadCustomerNotifications(@PathVariable String customerId) {
+        List<Notification> notifications = notificationService.getUnreadCustomerNotifications(customerId);
+        return ResponseEntity.ok(notifications);
+    }
 }

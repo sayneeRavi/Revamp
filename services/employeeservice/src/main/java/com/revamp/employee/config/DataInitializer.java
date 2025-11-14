@@ -6,13 +6,29 @@ import com.revamp.employee.repository.EmployeeRepository;
 import com.revamp.employee.repository.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * DataInitializer - Only runs in 'dev' or 'test' profiles
+ * 
+ * IMPORTANT: This class is for development/testing only.
+ * In production, set spring.profiles.active=prod to disable this initializer.
+ * All employee and task data should come from:
+ * - Admin service API (for task assignments)
+ * - Auth service API (for employee user creation)
+ * - Database (for existing records)
+ * 
+ * To run in production mode without sample data:
+ * - Set spring.profiles.active=prod in application.properties
+ * - Or use environment variable: SPRING_PROFILES_ACTIVE=prod
+ */
 @Component
+@Profile({"dev", "test", "default"})
 public class DataInitializer implements CommandLineRunner {
 
     @Autowired
@@ -68,6 +84,7 @@ public class DataInitializer implements CommandLineRunner {
             task1.setAssignedDate(LocalDateTime.now());
             task1.setDueDate(LocalDateTime.now().plusDays(1));
             task1.setAssignedEmployeeId("EMP001");
+            task1.setAssignedAdminId("ADMIN001"); // Should come from actual admin assignment in production
             task1.setInstructions("Check brake pads and replace if needed");
             task1.setCreatedAt(LocalDateTime.now());
             task1.setUpdatedAt(LocalDateTime.now());
@@ -84,6 +101,7 @@ public class DataInitializer implements CommandLineRunner {
             task2.setAssignedDate(LocalDateTime.now());
             task2.setDueDate(LocalDateTime.now().plusDays(3));
             task2.setAssignedEmployeeId("EMP002");
+            task2.setAssignedAdminId("ADMIN001"); // Should come from actual admin assignment in production
             task2.setInstructions("Follow manufacturer guidelines for engine swap");
             task2.setCreatedAt(LocalDateTime.now());
             task2.setUpdatedAt(LocalDateTime.now());
@@ -100,6 +118,7 @@ public class DataInitializer implements CommandLineRunner {
             task3.setAssignedDate(LocalDateTime.now());
             task3.setDueDate(LocalDateTime.now().plusDays(2));
             task3.setAssignedEmployeeId("EMP001");
+            task3.setAssignedAdminId("ADMIN001"); // Should come from actual admin assignment in production
             task3.setInstructions("Replace transmission fluid and filter");
             task3.setCreatedAt(LocalDateTime.now());
             task3.setUpdatedAt(LocalDateTime.now());

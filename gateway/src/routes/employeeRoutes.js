@@ -27,11 +27,41 @@ router.post("/employee-details", async (req, res) => {
     console.log(`[Gateway] POST /employee-details - Request body:`, JSON.stringify(req.body, null, 2));
     console.log(`[Gateway] Calling employee service: ${EMPLOYEE_SERVICE}/api/employee/employee-details`);
     
-    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/employee/employee-details`, {
-      method: "POST",
-      headers: buildHeaders(req),
-      body: JSON.stringify(req.body),
-    });
+    let backendRes;
+    try {
+      backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/employee/employee-details`, {
+        method: "POST",
+        headers: buildHeaders(req),
+        body: JSON.stringify(req.body),
+      });
+    } catch (fetchError) {
+      console.error("[Gateway] Fetch error connecting to employee service:", fetchError);
+      console.error("[Gateway] Employee service URL:", EMPLOYEE_SERVICE);
+      console.error("[Gateway] Error details:", {
+        name: fetchError.name,
+        message: fetchError.message,
+        code: fetchError.code,
+        cause: fetchError.cause
+      });
+      
+      if (fetchError.code === 'ECONNREFUSED' || fetchError.message?.includes('ECONNREFUSED') || fetchError.message?.includes('fetch failed')) {
+        return res.status(503).json({ 
+          message: "Employee service is currently unavailable. Please ensure the employee service is running on port 8083.",
+          error: "EmployeeServiceUnavailable",
+          service: "employee-service",
+          serviceUrl: EMPLOYEE_SERVICE,
+          details: "The employee service could not be reached. Please check if the service is running."
+        });
+      }
+      
+      return res.status(503).json({ 
+        message: `Failed to connect to employee service: ${fetchError.message || 'Unknown error'}`,
+        error: "EmployeeServiceConnectionError",
+        service: "employee-service",
+        serviceUrl: EMPLOYEE_SERVICE,
+        details: fetchError.message
+      });
+    }
 
     console.log(`[Gateway] Employee service response status: ${backendRes.status}`);
     
@@ -154,6 +184,107 @@ router.put("/employee-details/:userId", async (req, res) => {
     res.status(backendRes.status).json(data);
   } catch (err) {
     console.error("Update employee details error:", err);
+    res.status(500).json({ message: "Gateway error", error: err.message });
+  }
+});
+
+// Create employee
+router.post("/", async (req, res) => {
+  try {
+    console.log(`[Gateway] Creating employee - Request body:`, JSON.stringify(req.body, null, 2));
+    console.log(`[Gateway] Calling employee service: ${EMPLOYEE_SERVICE}/api/employees`);
+    
+    let backendRes;
+    try {
+      backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/employees`, {
+        method: "POST",
+        headers: buildHeaders(req),
+        body: JSON.stringify(req.body),
+      });
+    } catch (fetchError) {
+      console.error("[Gateway] Fetch error connecting to employee service:", fetchError);
+      console.error("[Gateway] Employee service URL:", EMPLOYEE_SERVICE);
+      console.error("[Gateway] Error details:", {
+        name: fetchError.name,
+        message: fetchError.message,
+        code: fetchError.code,
+        cause: fetchError.cause
+      });
+      
+      if (fetchError.code === 'ECONNREFUSED' || fetchError.message?.includes('ECONNREFUSED') || fetchError.message?.includes('fetch failed')) {
+        return res.status(503).json({ 
+          message: "Employee service is currently unavailable. Please ensure the employee service is running on port 8083.",
+          error: "EmployeeServiceUnavailable",
+          service: "employee-service",
+          serviceUrl: EMPLOYEE_SERVICE,
+          details: "The employee service could not be reached. Please check if the service is running."
+        });
+      }
+      
+      return res.status(503).json({ 
+        message: `Failed to connect to employee service: ${fetchError.message || 'Unknown error'}`,
+        error: "EmployeeServiceConnectionError",
+        service: "employee-service",
+        serviceUrl: EMPLOYEE_SERVICE,
+        details: fetchError.message
+      });
+    }
+
+    console.log(`[Gateway] Employee service response status: ${backendRes.status}`);
+    
+    // Get response text first to handle both success and error cases
+    const responseText = await backendRes.text();
+    console.log(`[Gateway] Employee service response body:`, responseText);
+    
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      console.error(`[Gateway] Failed to parse response as JSON:`, parseError);
+      console.error(`[Gateway] Response text was:`, responseText);
+      // If response is not valid JSON, create a proper error response
+      return res.status(backendRes.status || 500).json({ 
+        message: "Invalid response from employee service",
+        error: responseText || "Empty response",
+        status: backendRes.status
+      });
+    }
+    
+    // If backend returned an error status, ensure we have a proper error message
+    if (!backendRes.ok) {
+      console.error(`[Gateway] Employee service returned error:`, data);
+      return res.status(backendRes.status).json({
+        message: data.message || "Error creating employee",
+        error: data.error || data,
+        status: backendRes.status
+      });
+    }
+    
+    console.log(`[Gateway] Employee created successfully:`, data);
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("[Gateway] Create employee error:", err);
+    console.error("[Gateway] Error stack:", err.stack);
+    res.status(500).json({ 
+      message: "Gateway error", 
+      error: err.message,
+      details: err.toString()
+    });
+  }
+});
+
+// Get employee by userId
+router.get("/by-user/:userId", async (req, res) => {
+  try {
+    const backendRes = await fetch(`${EMPLOYEE_SERVICE}/api/employees/by-user/${req.params.userId}`, {
+      method: "GET",
+      headers: buildHeaders(req),
+    });
+
+    const data = await backendRes.json();
+    res.status(backendRes.status).json(data);
+  } catch (err) {
+    console.error("Get employee by userId error:", err);
     res.status(500).json({ message: "Gateway error", error: err.message });
   }
 });

@@ -1,14 +1,18 @@
 package com.revamp.employee.controller;
 
 import com.revamp.employee.dto.AvailabilityRequest;
+import com.revamp.employee.dto.CreateEmployeeRequest;
 import com.revamp.employee.dto.EmployeeUpdateRequest;
 import com.revamp.employee.model.Employee;
+import com.revamp.employee.model.TimeLog;
 import com.revamp.employee.service.EmployeeService;
+import com.revamp.employee.service.TimeTrackingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -19,6 +23,31 @@ public class EmployeeController {
 
     @Autowired
     private EmployeeService employeeService;
+
+    @Autowired
+    private TimeTrackingService timeTrackingService;
+
+    @PostMapping
+    public ResponseEntity<?> createEmployee(@RequestBody CreateEmployeeRequest request) {
+        try {
+            Employee employee = employeeService.createEmployee(request);
+            return ResponseEntity.status(201).body(employee);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            error.put("error", "Failed to create employee");
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    @GetMapping("/by-user/{userId}")
+    public ResponseEntity<Employee> getEmployeeByUserId(@PathVariable String userId) {
+        Optional<Employee> employee = employeeService.getEmployeeByUserId(userId);
+        if (employee.isPresent()) {
+            return ResponseEntity.ok(employee.get());
+        }
+        return ResponseEntity.notFound().build();
+    }
 
     @GetMapping("/profile/{employeeId}")
     public ResponseEntity<Employee> getEmployeeProfile(@PathVariable String employeeId) {
@@ -58,10 +87,21 @@ public class EmployeeController {
 
     @GetMapping("/history/{employeeId}")
     public ResponseEntity<Map<String, Object>> getWorkHistory(@PathVariable String employeeId) {
-        // This would typically return work history data
+        // Fetch work history from time logs
+        List<TimeLog> timeLogs = timeTrackingService.getEmployeeTimeLogs(employeeId);
+        
         Map<String, Object> response = new HashMap<>();
         response.put("employeeId", employeeId);
-        response.put("message", "Work history endpoint - to be implemented with time logs");
+        response.put("timeLogs", timeLogs);
+        response.put("totalLogs", timeLogs.size());
+        
+        // Calculate total hours worked
+        long totalMinutes = timeLogs.stream()
+            .filter(log -> log.getDuration() != null)
+            .mapToLong(log -> log.getDuration().toMinutes())
+            .sum();
+        response.put("totalHoursWorked", totalMinutes / 60.0);
+        
         return ResponseEntity.ok(response);
     }
 }

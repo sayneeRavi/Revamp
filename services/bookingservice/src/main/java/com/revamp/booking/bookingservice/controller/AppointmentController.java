@@ -293,6 +293,7 @@ public class AppointmentController {
 			List<String> employeeIds = (List<String>) request.get("employeeIds");
 			@SuppressWarnings("unchecked")
 			List<String> employeeNames = (List<String>) request.get("employeeNames");
+			String adminId = (String) request.get("adminId"); // Optional admin ID
 			
 			if (employeeIds == null || employeeIds.isEmpty()) {
 				Map<String, Object> errorResponse = new java.util.HashMap<>();
@@ -308,9 +309,10 @@ public class AppointmentController {
 				return ResponseEntity.badRequest().body(errorResponse);
 			}
 			
-			Appointment appointment = appointmentService.assignEmployees(id, employeeIds, employeeNames);
+			Appointment appointment = appointmentService.assignEmployees(id, employeeIds, employeeNames, adminId);
 			System.out.println("✓ Employees assigned successfully to appointment: " + id);
 			System.out.println("Assigned employees: " + employeeNames);
+			System.out.println("✓ Task creation process initiated for " + employeeIds.size() + " employee(s)");
 			return ResponseEntity.ok(appointment);
 		} catch (RuntimeException e) {
 			System.err.println("ERROR assigning employees: " + e.getMessage());
@@ -324,6 +326,116 @@ public class AppointmentController {
 			e.printStackTrace();
 			Map<String, Object> errorResponse = new java.util.HashMap<>();
 			errorResponse.put("message", "Failed to assign employees: " + e.getMessage());
+			errorResponse.put("error", "InternalServerError");
+			return ResponseEntity.status(500).body(errorResponse);
+		}
+	}
+
+	/**
+	 * Re-create tasks for an existing appointment
+	 * Useful when employee service was down during initial assignment
+	 */
+	@PostMapping("/{id}/recreate-tasks")
+	public ResponseEntity<?> recreateTasks(
+			@PathVariable String id,
+			@RequestHeader(value = "Authorization", required = false) String authHeader) {
+		try {
+			System.out.println("===== Re-creating Tasks for Appointment =====");
+			System.out.println("Appointment ID: " + id);
+			
+			// Get the appointment
+			Optional<Appointment> appointmentOpt = appointmentService.getAppointmentById(id);
+			if (!appointmentOpt.isPresent()) {
+				Map<String, Object> errorResponse = new java.util.HashMap<>();
+				errorResponse.put("message", "Appointment not found with ID: " + id);
+				errorResponse.put("error", "NotFound");
+				return ResponseEntity.status(404).body(errorResponse);
+			}
+			
+			Appointment appointment = appointmentOpt.get();
+			
+			// Check if appointment has assigned employees
+			if (appointment.getAssignedEmployeeIds() == null || appointment.getAssignedEmployeeIds().isEmpty()) {
+				Map<String, Object> errorResponse = new java.util.HashMap<>();
+				errorResponse.put("message", "No employees assigned to this appointment");
+				errorResponse.put("error", "ValidationError");
+				return ResponseEntity.badRequest().body(errorResponse);
+			}
+			
+			// Extract adminId from JWT token if available
+			String adminId = "ADMIN001"; // Default
+			if (authHeader != null && authHeader.startsWith("Bearer ")) {
+				try {
+					Claims claims = jwtUtil.parseToken(authHeader);
+					adminId = claims.getSubject() != null ? claims.getSubject() : 
+							  (claims.get("id") != null ? claims.get("id").toString() : "ADMIN001");
+				} catch (Exception e) {
+					System.out.println("Could not extract adminId from token, using default: " + adminId);
+				}
+			}
+			
+			// Re-create tasks
+			appointmentService.recreateTasksForAppointment(appointment, adminId);
+			
+			Map<String, Object> successResponse = new java.util.HashMap<>();
+			successResponse.put("message", "Tasks re-created successfully for " + appointment.getAssignedEmployeeIds().size() + " employee(s)");
+			successResponse.put("appointmentId", id);
+			successResponse.put("employeeCount", appointment.getAssignedEmployeeIds().size());
+			
+			return ResponseEntity.ok(successResponse);
+		} catch (Exception e) {
+			System.err.println("ERROR re-creating tasks: " + e.getMessage());
+			e.printStackTrace();
+			Map<String, Object> errorResponse = new java.util.HashMap<>();
+			errorResponse.put("message", "Failed to re-create tasks: " + e.getMessage());
+			errorResponse.put("error", "InternalServerError");
+			return ResponseEntity.status(500).body(errorResponse);
+		}
+	}
+
+	/**
+	 * Remove employee from appointment (when task is rejected)
+	 * This resets the appointment to "assigned" state for reassignment
+	 */
+	@PutMapping("/remove-employee")
+	public ResponseEntity<?> removeEmployeeFromAppointment(@RequestBody Map<String, String> request) {
+		try {
+			String customerId = request.get("customerId");
+			String employeeId = request.get("employeeId");
+			String employeeName = request.get("employeeName");
+			
+			if (customerId == null || employeeId == null) {
+				Map<String, Object> errorResponse = new java.util.HashMap<>();
+				errorResponse.put("message", "Customer ID and Employee ID are required");
+				errorResponse.put("error", "ValidationError");
+				return ResponseEntity.badRequest().body(errorResponse);
+			}
+			
+			Appointment appointment = appointmentService.removeEmployeeFromAppointment(
+				customerId, 
+				employeeId, 
+				employeeName != null ? employeeName : ""
+			);
+			
+			if (appointment == null) {
+				Map<String, Object> errorResponse = new java.util.HashMap<>();
+				errorResponse.put("message", "No appointment found for customer with this employee assigned");
+				errorResponse.put("error", "NotFound");
+				return ResponseEntity.status(404).body(errorResponse);
+			}
+			
+			Map<String, Object> successResponse = new java.util.HashMap<>();
+			successResponse.put("message", "Employee removed from appointment successfully");
+			successResponse.put("appointmentId", appointment.getId());
+			successResponse.put("status", appointment.getStatus());
+			successResponse.put("remainingEmployees", appointment.getAssignedEmployeeIds() != null ? appointment.getAssignedEmployeeIds().size() : 0);
+			
+			return ResponseEntity.ok(successResponse);
+		} catch (Exception e) {
+			System.err.println("ERROR removing employee from appointment: " + e.getMessage());
+			e.printStackTrace();
+			Map<String, Object> errorResponse = new java.util.HashMap<>();
+			errorResponse.put("message", "Failed to remove employee from appointment: " + e.getMessage());
 			errorResponse.put("error", "InternalServerError");
 			return ResponseEntity.status(500).body(errorResponse);
 		}

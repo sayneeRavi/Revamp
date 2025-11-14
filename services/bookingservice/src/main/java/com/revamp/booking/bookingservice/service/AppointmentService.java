@@ -26,6 +26,9 @@ public class AppointmentService {
 	@Autowired
 	private UnavailableDateService unavailableDateService;
 
+	@Autowired
+	private EmployeeServiceClient employeeServiceClient;
+
 	/**
 	 * Create a new appointment
 	 */
@@ -242,9 +245,9 @@ public class AppointmentService {
 	}
 
 	/**
-	 * Assign employees to appointment
+	 * Assign employees to appointment and create tasks in employee service
 	 */
-	public Appointment assignEmployees(String appointmentId, List<String> employeeIds, List<String> employeeNames) {
+	public Appointment assignEmployees(String appointmentId, List<String> employeeIds, List<String> employeeNames, String adminId) {
 		// Use _id for MongoDB query (Spring Data MongoDB maps id field to _id)
 		Query query = new Query(Criteria.where("_id").is(appointmentId));
 		Appointment appointment = mongoTemplate.findOne(query, Appointment.class);
@@ -266,7 +269,195 @@ public class AppointmentService {
 		// Update the updatedAt timestamp
 		appointment.setUpdatedAt(java.time.LocalDateTime.now());
 		
-		return mongoTemplate.save(appointment);
+		Appointment savedAppointment = mongoTemplate.save(appointment);
+		
+		// Create tasks in employee service for each assigned employee
+		createTasksForEmployees(savedAppointment, employeeIds, adminId);
+		
+		return savedAppointment;
+	}
+
+	/**
+	 * Remove an employee from an appointment (when task is rejected)
+	 * This resets the appointment to "assigned" state for reassignment
+	 */
+	public Appointment removeEmployeeFromAppointment(String customerId, String employeeId, String employeeName) {
+		System.out.println("=== Removing Employee from Appointment ===");
+		System.out.println("Customer ID: " + customerId);
+		System.out.println("Employee ID: " + employeeId);
+		System.out.println("Employee Name: " + employeeName);
+		
+		// Find appointments for this customer that have this employee assigned
+		Query query = new Query(Criteria.where("customerId").is(customerId)
+			.and("assignedEmployeeIds").in(employeeId));
+		List<Appointment> appointments = mongoTemplate.find(query, Appointment.class);
+		
+		if (appointments.isEmpty()) {
+			System.out.println("⚠ No appointments found for customer " + customerId + " with employee " + employeeId);
+			return null;
+		}
+		
+		// For each appointment, remove the employee
+		for (Appointment appointment : appointments) {
+			System.out.println("Processing appointment: " + appointment.getId());
+			
+			// Remove employee from assignedEmployeeIds
+			if (appointment.getAssignedEmployeeIds() != null) {
+				appointment.getAssignedEmployeeIds().remove(employeeId);
+				System.out.println("  Removed employee ID: " + employeeId);
+			}
+			
+			// Remove employee from assignedEmployeeNames
+			if (appointment.getAssignedEmployeeNames() != null) {
+				appointment.getAssignedEmployeeNames().remove(employeeName);
+				System.out.println("  Removed employee name: " + employeeName);
+			}
+			
+			// If no employees left, reset status to "Approved" (ready for reassignment)
+			if ((appointment.getAssignedEmployeeIds() == null || appointment.getAssignedEmployeeIds().isEmpty()) &&
+				(appointment.getAssignedEmployeeNames() == null || appointment.getAssignedEmployeeNames().isEmpty())) {
+				appointment.setStatus("Approved");
+				System.out.println("  All employees removed - Status set to 'Approved' for reassignment");
+			}
+			
+			appointment.setUpdatedAt(java.time.LocalDateTime.now());
+			mongoTemplate.save(appointment);
+			System.out.println("✓ Appointment updated: " + appointment.getId());
+			System.out.println("  Remaining employees: " + (appointment.getAssignedEmployeeIds() != null ? appointment.getAssignedEmployeeIds().size() : 0));
+			System.out.println("  Status: " + appointment.getStatus());
+			
+			return appointment; // Return the first updated appointment
+		}
+		
+		return null;
+	}
+
+	/**
+	 * Re-create tasks for an existing appointment
+	 * Useful when employee service was down during initial assignment
+	 */
+	public void recreateTasksForAppointment(Appointment appointment, String adminId) {
+		if (appointment.getAssignedEmployeeIds() == null || appointment.getAssignedEmployeeIds().isEmpty()) {
+			System.err.println("Cannot re-create tasks: No employees assigned to appointment " + appointment.getId());
+			return;
+		}
+		
+		System.out.println("=== Re-creating tasks for appointment: " + appointment.getId() + " ===");
+		createTasksForEmployees(appointment, appointment.getAssignedEmployeeIds(), adminId);
+	}
+
+	/**
+	 * Create tasks in employee service for each assigned employee
+	 */
+	private void createTasksForEmployees(Appointment appointment, List<String> employeeIds, String adminId) {
+		// Use provided adminId or default to "ADMIN001" if not provided
+		String assignedAdminId = (adminId != null && !adminId.isEmpty()) ? adminId : "ADMIN001";
+		
+		// Build vehicle info string
+		String vehicleInfo = appointment.getVehicle();
+		if (vehicleInfo == null || vehicleInfo.isEmpty()) {
+			vehicleInfo = "Vehicle information not available";
+		}
+		if (appointment.getVehicleDetails() != null) {
+			Appointment.VehicleDetails vd = appointment.getVehicleDetails();
+			if (vd.getYear() != null && vd.getMake() != null && vd.getModel() != null) {
+				vehicleInfo = vd.getYear() + " " + vd.getMake() + " " + vd.getModel();
+				if (vd.getRegistrationNumber() != null && !vd.getRegistrationNumber().isEmpty()) {
+					vehicleInfo += " - " + vd.getRegistrationNumber();
+				}
+			}
+		}
+		
+		// Convert service type to lowercase for employee service
+		String serviceType = appointment.getServiceType() != null 
+			? appointment.getServiceType().toLowerCase() 
+			: "service";
+		
+		// Build description
+		String description = appointment.getServiceType() != null ? appointment.getServiceType() : "Service";
+		// Check both modifications and neededModifications fields
+		List<String> mods = appointment.getModifications();
+		if ((mods == null || mods.isEmpty()) && appointment.getNeededModifications() != null && !appointment.getNeededModifications().isEmpty()) {
+			mods = appointment.getNeededModifications();
+		}
+		if (mods != null && !mods.isEmpty()) {
+			description = String.join(", ", mods);
+		}
+		
+		// Calculate due date (default to appointment date + 1 day if not set)
+		java.time.LocalDateTime dueDate = null;
+		if (appointment.getDate() != null) {
+			dueDate = appointment.getDate().atTime(17, 0); // 5 PM on appointment date
+		}
+		
+		// Create a task for each assigned employee
+		// Note: employeeIds from frontend are actually userIds from auth service
+		// We need to convert them to employeeId (EMP001, etc.) by fetching Employee records
+		System.out.println("=== Creating tasks for " + employeeIds.size() + " employee(s) ===");
+		for (String userId : employeeIds) {
+			System.out.println("Processing userId: " + userId);
+			// First, get the Employee record to find the actual employeeId (EMP001, etc.)
+			java.util.Map<String, Object> employeeRecord = employeeServiceClient.getEmployeeByUserId(userId);
+			
+			if (employeeRecord == null) {
+				System.err.println("✗ ERROR: Failed to get employee record for userId: " + userId);
+				System.err.println("  - Employee service returned null or 404");
+				System.err.println("  - Employee may not exist in employees collection");
+				System.err.println("  - Task will NOT be created for this employee");
+				System.err.println("  - Please ensure the employee record exists in the employees collection");
+				continue; // Skip this employee
+			}
+			
+			if (employeeRecord.get("employeeId") == null) {
+				System.err.println("✗ ERROR: Employee record found for userId: " + userId + " but employeeId field is missing");
+				System.err.println("  - Employee record: " + employeeRecord);
+				System.err.println("  - Task will NOT be created for this employee");
+				System.err.println("  - Please ensure the employee record has an employeeId field (e.g., EMP001, EMP005)");
+				continue; // Skip this employee
+			}
+			
+			String actualEmployeeId = (String) employeeRecord.get("employeeId");
+			System.out.println("✓ Converting userId " + userId + " to employeeId " + actualEmployeeId);
+			
+			java.util.Map<String, Object> taskData = new java.util.HashMap<>();
+			taskData.put("customerId", appointment.getCustomerId());
+			taskData.put("customerName", appointment.getCustomerName());
+			taskData.put("vehicleInfo", vehicleInfo);
+			taskData.put("serviceType", serviceType);
+			taskData.put("description", description);
+			taskData.put("priority", "medium"); // Default priority
+			taskData.put("estimatedHours", appointment.getEstimatedTimeHours() != null ? appointment.getEstimatedTimeHours() : 2);
+			
+			// Set assigned date (use ISO-8601 string format for compatibility)
+			java.time.LocalDateTime assignedDateTime = java.time.LocalDateTime.now();
+			taskData.put("assignedDate", assignedDateTime.toString()); // Convert to ISO-8601 string
+			
+			// Set due date if available
+			if (dueDate != null) {
+				taskData.put("dueDate", dueDate.toString()); // Convert to ISO-8601 string
+			}
+			
+			taskData.put("assignedEmployeeId", actualEmployeeId); // Use the actual employeeId (EMP001, etc.)
+			taskData.put("assignedAdminId", assignedAdminId);
+			taskData.put("instructions", appointment.getInstructions() != null ? appointment.getInstructions() : "Complete the assigned service as per customer requirements.");
+			
+			// Log task data being sent
+			System.out.println("  Task data to be sent:");
+			System.out.println("    Customer: " + taskData.get("customerName"));
+			System.out.println("    Employee ID: " + taskData.get("assignedEmployeeId"));
+			System.out.println("    Service Type: " + taskData.get("serviceType"));
+			System.out.println("    Description: " + taskData.get("description"));
+			System.out.println("    Assigned Date: " + taskData.get("assignedDate"));
+			System.out.println("    Due Date: " + taskData.get("dueDate"));
+			
+			// Call employee service to create task
+			java.util.Map<String, Object> createdTask = employeeServiceClient.createTask(taskData);
+			if (createdTask != null) {
+				System.out.println("✓ Task created for employee " + actualEmployeeId + " (userId: " + userId + ") - Task ID: " + createdTask.get("id"));
+			} else {
+				System.err.println("✗ Failed to create task for employee " + actualEmployeeId + " (userId: " + userId + ")");
+			}
+		}
 	}
 
 	/**

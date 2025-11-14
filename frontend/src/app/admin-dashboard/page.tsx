@@ -124,6 +124,11 @@ export default function AdminDashboard() {
     estimatedHours: ""
   });
   
+  // Notification state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [adminId, setAdminId] = useState<string | null>(null);
+  
   // Search and filter states
   const [appointmentSearch, setAppointmentSearch] = useState("");
   const [appointmentFilter, setAppointmentFilter] = useState<string>("all");
@@ -359,7 +364,7 @@ export default function AdminDashboard() {
       const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
       
       console.log("Loading employees from:", `${GATEWAY_URL}/api/auth/employees`);
-      console.log("Loading employee details from:", `${GATEWAY_URL}/api/auth/employee-details`);
+      console.log("Loading employee details from:", `${GATEWAY_URL}/api/employees/employee-details`);
       
       // Fetch both employees and their details
       let employeesResponse: Response;
@@ -375,7 +380,7 @@ export default function AdminDashboard() {
         throw new Error(`Failed to connect to gateway: ${err.message}`);
       }
       try {
-        detailsResponse = await fetch(`${GATEWAY_URL}/api/auth/employee-details`, {
+        detailsResponse = await fetch(`${GATEWAY_URL}/api/employees/employee-details`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
         });
@@ -620,6 +625,9 @@ export default function AdminDashboard() {
         newPassword: "",
         confirmPassword: ""
       });
+      // Extract admin ID from token (could be in sub, id, or adminId field)
+      const adminIdValue = decoded?.sub || decoded?.id || decoded?.adminId || "ADMIN001";
+      setAdminId(adminIdValue);
     }
     
     // Load employees and appointments from database
@@ -647,6 +655,131 @@ export default function AdminDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView]);
+
+  // Fetch notifications from backend
+  const fetchNotifications = async () => {
+    if (!adminId) return;
+    
+    const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+    let timeoutId: NodeJS.Timeout | null = null;
+    
+    try {
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const res = await fetch(`${GATEWAY_URL}/api/notifications/admin/${adminId}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      if (res.status === 503) {
+        return;
+      }
+      
+      if (res.ok) {
+        const data = await res.json();
+        const transformed = (data || []).map((n: any) => ({
+          id: n.id,
+          type: n.type || 'info',
+          title: n.title || 'Notification',
+          message: n.message || '',
+          timestamp: n.timestamp || n.createdAt || new Date().toISOString(),
+          read: n.isRead || false,
+          taskId: n.taskId
+        }));
+        
+        // Detect new notifications
+        const currentIds = new Set(notifications.map(n => n.id));
+        const newNotifications = transformed.filter(n => !currentIds.has(n.id));
+        
+        // Show toast for new unread notifications
+        newNotifications.filter(n => !n.read).forEach(notification => {
+          showToast(notification.message, "info");
+        });
+        
+        setNotifications(transformed);
+      }
+    } catch (e: any) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+        console.warn('Notification fetch timeout');
+      } else if (e.message?.includes('Failed to fetch')) {
+        console.warn('Network error fetching notifications');
+      }
+    }
+  };
+
+  // Fetch notifications when adminId is available
+  useEffect(() => {
+    if (adminId) {
+      fetchNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminId]);
+
+  // Poll for new notifications
+  useEffect(() => {
+    if (!adminId) return;
+    
+    const pollMs = 20000; // 20s
+    const timer = setInterval(() => {
+      fetchNotifications();
+    }, pollMs);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminId]);
+
+  // Close notification dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isNotificationOpen && !target.closest('.notification-dropdown')) {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    if (isNotificationOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isNotificationOpen]);
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
+      
+      const res = await fetch(`${GATEWAY_URL}/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => 
+          n.id === notificationId ? { ...n, read: true } : n
+        ));
+      }
+    } catch (e) {
+      console.error('Failed to mark notification as read:', e);
+      // Optimistic update
+      setNotifications(prev => prev.map(n => 
+        n.id === notificationId ? { ...n, read: true } : n
+      ));
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    const unreadNotifications = notifications.filter(n => !n.read);
+    for (const notification of unreadNotifications) {
+      await markNotificationAsRead(notification.id);
+    }
+  };
 
   const greeting = getGreeting();
 
@@ -764,7 +897,8 @@ export default function AdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employeeIds: employeeIds,
-          employeeNames: employeeNames
+          employeeNames: employeeNames,
+          adminId: user?.sub || user?.id || "ADMIN001" // Send admin ID from token
         }),
       });
       
@@ -883,7 +1017,7 @@ export default function AdminDashboard() {
               email: employeeForm.email,
             }),
           }),
-          fetch(`${GATEWAY_URL}/api/auth/employee-details/${selectedEmployee.id}`, {
+          fetch(`${GATEWAY_URL}/api/employees/employee-details/${selectedEmployee.id}`, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
@@ -908,7 +1042,7 @@ export default function AdminDashboard() {
           console.warn("Employee user updated but details update failed or doesn't exist");
           // Try to create details if they don't exist
           try {
-            await fetch(`${GATEWAY_URL}/api/auth/employee-details`, {
+            await fetch(`${GATEWAY_URL}/api/employees/employee-details`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -986,7 +1120,7 @@ export default function AdminDashboard() {
               skillsLength: employeeForm.skillSet?.length
             });
             
-            const detailsResponse = await fetch(`${GATEWAY_URL}/api/auth/employee-details`, {
+            const detailsResponse = await fetch(`${GATEWAY_URL}/api/employees/employee-details`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -1005,31 +1139,105 @@ export default function AdminDashboard() {
             
             // Get response text first to handle potential parsing errors
             const responseText = await detailsResponse.text();
-            console.log("Employee details response text:", responseText);
+            console.log("Employee details response text (first 200 chars):", responseText.substring(0, 200));
+            
+            // Check if response is HTML (error page)
+            if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+              console.error("Received HTML error page instead of JSON");
+              throw new Error(`Server returned an error page. Status: ${detailsResponse.status}. The employee service may be down or the endpoint is incorrect.`);
+            }
             
             let detailsData: any = {};
             try {
-              detailsData = responseText ? JSON.parse(responseText) : {};
+              if (responseText && responseText.trim().length > 0) {
+                detailsData = JSON.parse(responseText);
+              } else {
+                // Empty response body
+                detailsData = { 
+                  message: `Server returned empty response. Status: ${detailsResponse.status}`,
+                  error: "EmptyResponse"
+                };
+              }
             } catch (parseError) {
               console.error("Failed to parse employee details response as JSON:", parseError);
-              console.error("Response text was:", responseText);
-              throw new Error(`Invalid response from server: ${responseText || "Empty response"}`);
+              console.error("Response text was:", responseText.substring(0, 500));
+              // Use the raw response text as the error message
+              detailsData = { 
+                message: `Invalid response from server. Status: ${detailsResponse.status}. Response: ${responseText.substring(0, 200)}`,
+                error: "ParseError",
+                rawResponse: responseText.substring(0, 500)
+              };
             }
             
             console.log("Employee details save response (parsed):", detailsData);
             
             if (!detailsResponse.ok) {
-              const errorMessage = detailsData.message || detailsData.error || `HTTP ${detailsResponse.status} error`;
+              // Build a comprehensive error message
+              const errorMessage = detailsData.message || 
+                                 detailsData.error || 
+                                 (detailsData.rawResponse ? `Server response: ${detailsData.rawResponse}` : null) ||
+                                 `HTTP ${detailsResponse.status} ${detailsResponse.statusText || 'error'}`;
+              
               console.error("Failed to save employee details:", {
                 status: detailsResponse.status,
                 statusText: detailsResponse.statusText,
-                data: detailsData
+                data: detailsData,
+                responseText: responseText.substring(0, 200)
               });
               showToast(`Employee registered but details could not be saved: ${errorMessage}`, "error");
             } else {
               console.log("✓ Employee details saved successfully to EAD-Employes database");
               console.log("Saved details:", detailsData);
-              showToast("Employee registered successfully with all details saved!");
+            }
+
+            // Step 3: Create Employee record in employees collection
+            try {
+              console.log("Creating Employee record in employees collection...");
+              const employeeResponse = await fetch(`${GATEWAY_URL}/api/employees`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  userId: data.id,
+                  username: employeeForm.name,
+                  email: employeeForm.email,
+                  phone: employeeForm.phone || "",
+                  department: "Service Department", // Default or from form
+                  specialization: employeeForm.skillSet.length > 0 ? employeeForm.skillSet[0] : "General",
+                  experienceLevel: "Mid-level (2-5 years)", // Default or from form
+                  skills: employeeForm.skillSet || [],
+                }),
+              });
+
+              console.log("Employee record response status:", employeeResponse.status);
+              console.log("Employee record response ok:", employeeResponse.ok);
+              
+              if (employeeResponse.ok) {
+                const employeeData = await employeeResponse.json();
+                console.log("✓ Employee record created successfully:", employeeData);
+                showToast("Employee registered successfully with all details saved!");
+              } else {
+                // Get response text first to handle potential parsing errors
+                const responseText = await employeeResponse.text().catch(() => "No response body");
+                console.error("Failed to create employee record - Status:", employeeResponse.status);
+                console.error("Failed to create employee record - Response:", responseText);
+                
+                let errorData: any = {};
+                try {
+                  errorData = responseText ? JSON.parse(responseText) : {};
+                } catch (parseError) {
+                  console.error("Failed to parse employee record response as JSON:", parseError);
+                  errorData = { message: responseText || `HTTP ${employeeResponse.status} error` };
+                }
+                
+                console.error("Failed to create employee record - Error:", errorData);
+                const errorMessage = errorData.message || errorData.error || `HTTP ${employeeResponse.status} error`;
+                showToast(`Employee registered but employee record could not be created: ${errorMessage}`, "error");
+              }
+            } catch (employeeError: any) {
+              console.error("Error creating employee record:", employeeError);
+              showToast("Employee registered but employee record could not be created: " + (employeeError.message || "Unknown error"), "error");
             }
           } catch (detailsError: any) {
             console.error("Error saving employee details:", detailsError);
@@ -1211,18 +1419,32 @@ export default function AdminDashboard() {
         }
       } else {
         const responseText = await response.text().catch(() => "No response body");
-        console.error("Failed to load modification services - Status:", response.status);
-        console.error("Failed to load modification services - Response:", responseText);
         
-        let errorData = {};
+        // Only log as error if it's not a service unavailable error (503)
+        if (response.status !== 503) {
+          console.error("Failed to load modification services - Status:", response.status);
+          console.error("Failed to load modification services - Response:", responseText);
+        } else {
+          console.warn("Modification services unavailable - Status:", response.status);
+        }
+        
+        let errorData: any = {};
         try {
           errorData = JSON.parse(responseText);
         } catch (e) {
           errorData = { message: responseText || `HTTP ${response.status} error` };
         }
         
-        console.error("Failed to load modification services - Error:", errorData);
-        showToast(`Failed to load modification services: ${(errorData as any).message || `HTTP ${response.status} error`}`, "error");
+        // Check if it's a service unavailable error (503)
+        if (response.status === 503 || errorData.error === "AdminServiceUnavailable" || errorData.error === "AdminServiceConnectionError") {
+          console.warn("Admin service is not available - modification services feature will be disabled");
+          console.warn("This is expected if the admin service is not running. The dashboard will continue to work normally.");
+          // Don't show error toast for service unavailability - just silently disable the feature
+          // showToast("Modification services are temporarily unavailable. The admin service may not be running.", "error");
+        } else {
+          console.error("Failed to load modification services - Error:", errorData);
+          showToast(`Failed to load modification services: ${errorData.message || `HTTP ${response.status} error`}`, "error");
+        }
         setModificationServices([]);
       }
     } catch (error: any) {
@@ -2509,8 +2731,113 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-8">
-          <div className="mb-6">
+          <div className="mb-6 flex items-center justify-between">
             <p className="text-gray-600">{greeting}, {user?.username || "Admin"}</p>
+            <div className="relative notification-dropdown">
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+              >
+                <Bell className="w-5 h-5" />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+              
+              {isNotificationOpen && (
+                <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 notification-dropdown">
+                  <div className="p-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-800">Notifications</h3>
+                      <div className="flex items-center space-x-2">
+                        {notifications.filter(n => !n.read).length > 0 && (
+                          <button
+                            onClick={markAllNotificationsAsRead}
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setIsNotificationOpen(false)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-gray-500">
+                        <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p>No notifications</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-200">
+                        {notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-4 border-l-4 ${
+                              notification.type === 'success' ? 'border-l-green-500 bg-green-50' :
+                              notification.type === 'warning' ? 'border-l-yellow-500 bg-yellow-50' :
+                              notification.type === 'error' ? 'border-l-red-500 bg-red-50' :
+                              'border-l-blue-500 bg-blue-50'
+                            } ${
+                              !notification.read ? 'bg-white' : 'bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start space-x-3">
+                              {notification.type === 'success' ? (
+                                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                              ) : notification.type === 'warning' ? (
+                                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                              ) : notification.type === 'error' ? (
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                              ) : (
+                                <Bell className="w-5 h-5 text-blue-600" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <p className={`text-sm font-medium ${
+                                    !notification.read ? 'text-gray-900' : 'text-gray-700'
+                                  }`}>
+                                    {notification.title}
+                                  </p>
+                                  {!notification.read && (
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {notification.message}
+                                </p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-xs text-gray-500 flex items-center">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    {new Date(notification.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              {!notification.read && (
+                                <button
+                                  onClick={() => markNotificationAsRead(notification.id)}
+                                  className="p-1 hover:bg-gray-200 rounded"
+                                >
+                                  <X className="w-3 h-3 text-gray-400" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {activeView === "dashboard" && renderDashboard()}

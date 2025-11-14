@@ -68,4 +68,58 @@ public class NotificationService {
         }
         throw new RuntimeException("Notification not found");
     }
+
+    // Employee notification methods
+    public Notification sendEmployeeNotification(String employeeId, String adminId, String type, 
+                                                String title, String message, String taskId, 
+                                                Map<String, Object> metadata) {
+        Notification notification = new Notification();
+        notification.setRecipientId(employeeId); // Employee receives the notification
+        notification.setSenderId(adminId); // Admin sends the notification
+        notification.setType(type);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setTaskId(taskId);
+        notification.setMetadata(metadata);
+        notification.setTimestamp(LocalDateTime.now());
+        notification.setRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+
+        return notificationRepository.save(notification);
+    }
+
+    public List<Notification> getEmployeeNotifications(String employeeId) {
+        return notificationRepository.findByRecipientId(employeeId);
+    }
+
+    public List<Notification> getUnreadEmployeeNotifications(String employeeId) {
+        return notificationRepository.findByRecipientIdAndIsRead(employeeId, false);
+    }
+
+    // Customer notification methods
+    public Notification sendCustomerNotification(String customerId, String senderId, String type, 
+                                                String title, String message, String taskId, 
+                                                Map<String, Object> metadata) {
+        Notification notification = new Notification();
+        notification.setRecipientId(customerId); // Customer receives the notification
+        notification.setSenderId(senderId); // Employee/Admin sends the notification
+        notification.setType(type);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setTaskId(taskId);
+        notification.setMetadata(metadata);
+        notification.setTimestamp(LocalDateTime.now());
+        notification.setRead(false);
+        notification.setCreatedAt(LocalDateTime.now());
+
+        return notificationRepository.save(notification);
+    }
+
+    public List<Notification> getCustomerNotifications(String customerId) {
+        return notificationRepository.findByRecipientId(customerId);
+    }
+
+    public List<Notification> getUnreadCustomerNotifications(String customerId) {
+        return notificationRepository.findByRecipientIdAndIsRead(customerId, false);
+    }
 }
