@@ -102,7 +102,7 @@ public class TaskService {
                 && task.getAssignedEmployeeId().equals(employeeId)
                 && task.getStatus() != null
                 && !task.getStatus().isEmpty()
-                && !(task.getStatus().equals("assigned") && task.getAssignedEmployeeId() == null)) // Extra safety check
+                && !(task.getStatus().equals("assigned") && task.getAssignedEmployeeId() == null) // Extra safety check
             )
             .toList();
     }
