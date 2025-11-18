@@ -65,8 +65,11 @@ export async function validateBooking(
           errors.push("Selected time slot is not available");
           return { isValid: false, errors };
         }
+        console.log("dateValidation",dateValidation)
+        console.log("selectedSlot",selectedSlot)
+        console.log("selectedSlot isAvailable",selectedSlot.available)
 
-        if (!selectedSlot.isAvailable) {
+        if (!selectedSlot.available) {
           errors.push("Selected time slot has been booked. Please select another slot.");
           return { isValid: false, errors };
         }

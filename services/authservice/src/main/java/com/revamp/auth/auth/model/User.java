@@ -12,7 +12,7 @@ public class User {
     private String email;
     private String passwordHash; // store hashed password
     private String role; // "ADMIN", "EMPLOYEE", "CONSUMER"
-    private boolean enabled = false;
+    private boolean enabled = true;
 
     public User() {}
 
@@ -39,10 +39,11 @@ public class User {
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
 
-     public boolean isEnabled() {
+    public boolean isEnabled() {
         return enabled;
     }
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
+    
 }

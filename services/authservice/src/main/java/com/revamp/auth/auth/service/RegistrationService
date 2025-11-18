@@ -1,0 +1,43 @@
+// package com.revamp.auth.auth.service;
+
+// @Service
+// public class RegistrationService {
+
+//     @Autowired
+//     private UserRepository userRepository;
+
+//     @Autowired
+//     private VerificationTokenRepository tokenRepository;
+
+//     @Autowired
+//     private EmailService emailService;
+
+//     public void register(User user) {
+//         user.setEnabled(false);
+//         userRepository.save(user);
+
+//         // Generate token
+//         String token = UUID.randomUUID().toString();
+//         VerificationToken verificationToken = new VerificationToken();
+//         verificationToken.setToken(token);
+//         verificationToken.setUser(user);
+//         verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(30)); // 30 mins validity
+//         tokenRepository.save(verificationToken);
+
+//         // Send email
+//         emailService.sendVerificationEmail(user.getEmail(), token);
+//     }
+
+//     public boolean verifyUser(String token) {
+//         VerificationToken verificationToken = tokenRepository.findByToken(token);
+
+//         if (verificationToken == null) return false;
+//         if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) return false;
+
+//         User user = verificationToken.getUser();
+//         user.setEnabled(true);
+//         userRepository.save(user);
+//         return true;
+//     }
+// }
+

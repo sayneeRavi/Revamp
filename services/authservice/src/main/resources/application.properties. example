@@ -1,0 +1,9 @@
+# Spring Boot server
+
+server.port=0000
+spring.data.mongodb.uri=
+jwt.secret=
+jwt.expirationMs=00000000
+
+logging.level.org.springframework.web=XXXX
+
