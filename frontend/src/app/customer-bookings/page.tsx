@@ -2,6 +2,7 @@
 import SidebarLayout from "@/components/SidebarLayout";
 import ConfirmationPopup from "@/components/ConfirmationPopup";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
 
@@ -20,6 +21,7 @@ type Booking = {
 };
 
 export default function BookingsPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
@@ -106,6 +108,7 @@ export default function BookingsPage() {
             <button
               onClick={() => {
                 /* TODO: Open Add Booking Modal */
+                router.push("/book")
               }}
               className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
             >

@@ -13,6 +13,7 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
+  const token = localStorage.getItem("token");
 
   // Form state
   const [serviceType, setServiceType] = useState<"Service" | "Modification">("Service");
@@ -31,6 +32,7 @@ export default function BookPage() {
     if (token) {
       try {
         const decoded = decodeToken(token);
+        console.log("token",decoded)
         if (decoded) {
           setUser(decoded);
           setCustomerEmail(decoded.email || "");
@@ -108,7 +110,7 @@ export default function BookPage() {
       }
 
       // Validate booking
-      if (!user?.userId) {
+      if (!user?.sub) {
         setError("User information not available. Please login again.");
         setLoading(false);
         return;
@@ -118,7 +120,7 @@ export default function BookPage() {
         serviceType,
         date: selectedDate,
         timeSlotId: selectedSlotId || undefined,
-        customerId: String(user.userId),
+        customerId: String(user.sub),
       });
 
       if (!validation.isValid) {
@@ -157,6 +159,7 @@ export default function BookPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(bookingData),
       });

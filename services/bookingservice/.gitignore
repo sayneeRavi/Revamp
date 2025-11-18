@@ -41,4 +41,4 @@ setup-env.local.sh
 setup-env.sh
 
 ### notes ###
-.src/main/java/com/revamp/auth/auth/serviceRegistrationService
+.services\bookingservice\.gitignore

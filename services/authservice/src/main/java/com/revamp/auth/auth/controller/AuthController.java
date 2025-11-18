@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -30,6 +31,7 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
 
     @Autowired
     private UserRepository userRepository;
@@ -95,6 +97,23 @@ public class AuthController {
             return ResponseEntity.status(401)
                     .body(Collections.singletonMap("message", ex.getMessage()));
         }
+    }
+    // user.setPasswordHash(null); // don’t leak hash
+    // return ResponseEntity.ok(new AuthResponse(
+    // token,
+    // Collections.singletonMap("role", user.getRole())));
+    // } catch (RuntimeException ex) {
+    // return ResponseEntity.status(401)
+    // .body(Collections.singletonMap("message", ex.getMessage()));
+    // }
+    // }
+
+    @GetMapping("/verify")
+    public ResponseEntity<String> verifyEmail(@RequestParam("token") String token) {
+        boolean verified = authService.verifyEmail(token);
+        if (verified)
+            return ResponseEntity.ok("Email verified successfully!");
+        return ResponseEntity.badRequest().body("Invalid or expired verification link");
     }
 
     /** Change password */
@@ -169,11 +188,14 @@ public class AuthController {
                         .body(Collections.singletonMap("message", "Only employees can be updated"));
             }
 
-            if (req.username != null && !req.username.isEmpty()) user.setUsername(req.username);
-            if (req.email != null && !req.email.isEmpty()) user.setEmail(req.email);
+            if (req.username != null && !req.username.isEmpty())
+                user.setUsername(req.username);
+            if (req.email != null && !req.email.isEmpty())
+                user.setEmail(req.email);
 
             User updated = userRepository.save(user);
             updated.setPasswordHash(null);
+
 
             return ResponseEntity.ok(updated);
         } catch (Exception ex) {

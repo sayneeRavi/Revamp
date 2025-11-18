@@ -24,6 +24,8 @@ export interface DateAvailability {
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000";
 
+//redaundant function??
+
 /**
  * Check if a date is available for booking and get available time slots
  * @param date - Date string in YYYY-MM-DD format
@@ -109,7 +111,7 @@ export async function validateDateForBooking(date: string): Promise<{
 }> {
   try {
     const availability = await checkDateAvailability(date);
-    
+
     if (!availability.isAvailable) {
       return {
         isValid: false,
