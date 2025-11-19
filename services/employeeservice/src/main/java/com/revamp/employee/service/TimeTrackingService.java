@@ -51,9 +51,27 @@ public class TimeTrackingService {
             timeLog.setStatus("completed");
             timeLog.setUpdatedAt(LocalDateTime.now());
 
-            // Calculate total duration
-            Duration totalDuration = Duration.between(timeLog.getStartTime(), timeLog.getEndTime());
-            timeLog.setDuration(totalDuration);
+            // Calculate duration for the current/final session
+            Duration currentSessionDuration = Duration.between(timeLog.getStartTime(), timeLog.getEndTime());
+            
+            // If there are previous sessions (from pause/resume), add a final session
+            if (timeLog.getSessions() != null && !timeLog.getSessions().isEmpty()) {
+                TimeSession finalSession = new TimeSession();
+                finalSession.setStartTime(timeLog.getStartTime());
+                finalSession.setEndTime(timeLog.getEndTime());
+                finalSession.setDuration(currentSessionDuration);
+                timeLog.getSessions().add(finalSession);
+                
+                // Calculate total duration including all sessions
+                Duration totalDuration = timeLog.getSessions().stream()
+                    .map(TimeSession::getDuration)
+                    .filter(d -> d != null)
+                    .reduce(Duration.ZERO, Duration::plus);
+                timeLog.setDuration(totalDuration);
+            } else {
+                // No sessions, just set the duration directly
+                timeLog.setDuration(currentSessionDuration);
+            }
 
             return timeLogRepository.save(timeLog);
         }

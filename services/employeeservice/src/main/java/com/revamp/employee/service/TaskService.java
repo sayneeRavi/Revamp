@@ -48,7 +48,7 @@ public class TaskService {
         task.setAssignedEmployeeId(request.getAssignedEmployeeId());
         task.setAssignedAdminId(request.getAssignedAdminId());
         task.setInstructions(request.getInstructions());
-        task.setStatus("assigned"); // New tasks start as "assigned"
+        task.setStatus("accepted"); // New tasks start as "accepted" - skip accept/reject step
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
         task.setUpdates(new ArrayList<>());

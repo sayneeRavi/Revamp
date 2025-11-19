@@ -95,10 +95,31 @@ public class EmployeeController {
         response.put("timeLogs", timeLogs);
         response.put("totalLogs", timeLogs.size());
         
-        // Calculate total hours worked
+        // Calculate total hours worked including all sessions
         long totalMinutes = timeLogs.stream()
-            .filter(log -> log.getDuration() != null)
-            .mapToLong(log -> log.getDuration().toMinutes())
+            .mapToLong(log -> {
+                long logMinutes = 0;
+                
+                // Add duration from sessions (pause/resume cycles)
+                if (log.getSessions() != null && !log.getSessions().isEmpty()) {
+                    logMinutes += log.getSessions().stream()
+                        .filter(session -> session.getDuration() != null)
+                        .mapToLong(session -> session.getDuration().toMinutes())
+                        .sum();
+                }
+                
+                // Add final duration if completed
+                if (log.getDuration() != null) {
+                    logMinutes += log.getDuration().toMinutes();
+                }
+                
+                // If no sessions and no duration, but has start and end time, calculate it
+                if (logMinutes == 0 && log.getStartTime() != null && log.getEndTime() != null) {
+                    logMinutes = java.time.Duration.between(log.getStartTime(), log.getEndTime()).toMinutes();
+                }
+                
+                return logMinutes;
+            })
             .sum();
         response.put("totalHoursWorked", totalMinutes / 60.0);
         

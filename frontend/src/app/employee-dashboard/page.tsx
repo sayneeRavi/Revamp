@@ -52,7 +52,6 @@ export default function EmployeeDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([]);
   const [currentTimeLog, setCurrentTimeLog] = useState<TimeLog | null>(null);
-  const [isAvailable, setIsAvailable] = useState(true);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL as string;
@@ -61,6 +60,8 @@ export default function EmployeeDashboard() {
   const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [workHistory, setWorkHistory] = useState<any>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Load shown notifications from localStorage and clean up old ones
   useEffect(() => {
@@ -276,6 +277,47 @@ export default function EmployeeDashboard() {
   };
 
   const greeting = getGreeting();
+
+  // Fetch work history
+  const fetchWorkHistory = async () => {
+    if (!employeeId || !GATEWAY_URL) return;
+    
+    setIsLoadingHistory(true);
+    try {
+      const res = await fetch(`${GATEWAY_URL}/api/employees/history/${employeeId}`, {
+        cache: 'no-store'
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setWorkHistory(data);
+        // Also update timeLogs for backward compatibility
+        if (data.timeLogs) {
+          setTimeLogs(data.timeLogs);
+        }
+      } else {
+        console.error('Failed to fetch work history:', res.status);
+      }
+    } catch (error) {
+      console.error('Error fetching work history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Fetch work history when employeeId is available (for dashboard stats)
+  useEffect(() => {
+    if (employeeId && !workHistory) {
+      fetchWorkHistory();
+    }
+  }, [employeeId]);
+
+  // Refresh work history when history tab is accessed
+  useEffect(() => {
+    if (activeTab === 'history' && employeeId) {
+      fetchWorkHistory();
+    }
+  }, [activeTab]);
 
   // Fetch notifications from backend
   const fetchNotifications = async () => {
@@ -683,12 +725,23 @@ export default function EmployeeDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'assigned': return 'bg-yellow-100 text-yellow-800';
+      case 'assigned': return 'bg-blue-100 text-blue-800';
       case 'accepted': return 'bg-blue-100 text-blue-800';
       case 'in-progress': return 'bg-orange-100 text-orange-800';
       case 'completed': return 'bg-green-100 text-green-800';
       case 'delivered': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'Ready to Start';
+      case 'accepted': return 'Ready to Start';
+      case 'in-progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'delivered': return 'Delivered';
+      default: return status;
     }
   };
 
@@ -771,27 +824,6 @@ export default function EmployeeDashboard() {
         ))}
       </nav>
 
-      <div className="mt-8 pt-6 border-t border-gray-600">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-medium text-white">Availability</span>
-          <button
-            onClick={() => setIsAvailable(!isAvailable)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              isAvailable ? 'bg-green-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isAvailable ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        <p className="text-xs text-gray-300">
-          {isAvailable ? 'Available for new tasks' : 'Currently unavailable'}
-        </p>
-      </div>
-
       <div className="pt-4 border-t border-gray-700 mt-auto">
         <button
           onClick={handleLogout}
@@ -861,9 +893,9 @@ export default function EmployeeDashboard() {
               <Timer className="w-6 h-6 text-orange-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-300">Hours Worked</p>
+              <p className="text-sm font-medium text-gray-300">Total Hours Worked</p>
               <p className="text-2xl font-bold text-white">
-                {currentTimeLog ? formatDuration(currentTimeLog.startTime).split('h')[0] : '0'}h
+                {workHistory ? `${workHistory.totalHoursWorked.toFixed(1)}h` : '0h'}
               </p>
             </div>
           </div>
@@ -889,7 +921,7 @@ export default function EmployeeDashboard() {
                 {tasks.find(t => t.id === currentTimeLog.taskId)?.description}
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                Status: {tasks.find(t => t.id === currentTimeLog.taskId)?.status.replace('-', ' ')}
+                Status: {getStatusLabel(tasks.find(t => t.id === currentTimeLog.taskId)?.status || '')}
               </p>
             </div>
             <div className="text-right">
@@ -933,22 +965,14 @@ export default function EmployeeDashboard() {
       {/* Workflow Status */}
       <div className="bg-gray-700 rounded-xl p-6 shadow-lg border border-gray-600 mb-6 relative z-10">
         <h3 className="text-lg font-semibold text-white mb-4">Workflow Status</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-              <span className="text-yellow-600 font-bold">
-                {tasks.filter(t => t.status === 'assigned').length}
-              </span>
-            </div>
-            <p className="text-sm text-gray-300">Assigned</p>
-          </div>
+        <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
               <span className="text-blue-600 font-bold">
-                {tasks.filter(t => t.status === 'accepted').length}
+                {tasks.filter(t => t.status === 'assigned' || t.status === 'accepted').length}
               </span>
             </div>
-            <p className="text-sm text-gray-300">Accepted</p>
+            <p className="text-sm text-gray-300">Ready to Start</p>
           </div>
           <div className="text-center">
             <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -991,7 +1015,7 @@ export default function EmployeeDashboard() {
                 </div>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                {task.status.replace('-', ' ')}
+                {getStatusLabel(task.status)}
               </span>
             </div>
           ))}
@@ -1049,7 +1073,7 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center space-x-3 mb-2">
                   <h3 className="text-lg font-semibold text-white">{task.customerName}</h3>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                    {task.status.replace('-', ' ')}
+                    {getStatusLabel(task.status)}
                   </span>
                 </div>
                 <p className="text-gray-300 mb-2">{task.vehicleInfo}</p>
@@ -1077,29 +1101,10 @@ export default function EmployeeDashboard() {
               </div>
 
               <div className="flex space-x-2">
-                {task.status === 'assigned' && (
-                  <>
-                    <button
-                      onClick={() => handleTaskAction(task.id, 'accept')}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => handleTaskAction(task.id, 'reject')}
-                      className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Reject
-                    </button>
-                  </>
-                )}
-
-                {task.status === 'accepted' && (
+                {(task.status === 'assigned' || task.status === 'accepted') && (
                   <button
                     onClick={() => startTimeTracking(task.id)}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors flex items-center"
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                   >
                     <Play className="w-4 h-4 mr-2" />
                     Start Work & Timer
@@ -1291,19 +1296,91 @@ export default function EmployeeDashboard() {
         <p className="text-gray-600">Track your completed tasks and time logs</p>
       </div>
 
+      {workHistory && workHistory.totalHoursWorked > 0 && (
+        <div className="bg-blue-50 rounded-xl p-6 mb-6 border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Total Hours Worked</p>
+              <p className="text-3xl font-bold text-blue-900">{workHistory.totalHoursWorked.toFixed(1)}h</p>
+            </div>
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Total Sessions</p>
+              <p className="text-3xl font-bold text-blue-900">{workHistory.totalLogs}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {timeLogs.map((log) => {
+        {isLoadingHistory ? (
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading work history...</p>
+          </div>
+        ) : timeLogs.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200 text-center">
+            <History className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Work History</h3>
+            <p className="text-gray-600">Your completed tasks and time logs will appear here.</p>
+          </div>
+        ) : timeLogs.map((log) => {
           const task = tasks.find(t => t.id === log.taskId);
+          // Calculate total duration including sessions
+          let totalMinutes = 0;
+          
+          // Helper function to parse Java Duration object
+          const parseDuration = (duration: any): number => {
+            if (!duration) return 0;
+            if (typeof duration === 'number') return Math.floor(duration / 60);
+            if (typeof duration === 'string') {
+              // Parse ISO 8601 duration format (e.g., "PT1H30M")
+              const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+              if (match) {
+                const hours = parseInt(match[1] || '0');
+                const mins = parseInt(match[2] || '0');
+                const secs = parseInt(match[3] || '0');
+                return hours * 60 + mins + Math.floor(secs / 60);
+              }
+            }
+            if (duration.seconds !== undefined) {
+              // Java Duration serialized as object with seconds field
+              return Math.floor(duration.seconds / 60);
+            }
+            if (duration.nano !== undefined && duration.seconds !== undefined) {
+              return Math.floor(duration.seconds / 60);
+            }
+            return 0;
+          };
+          
+          if (log.duration) {
+            totalMinutes = parseDuration(log.duration);
+          } else if (log.sessions && log.sessions.length > 0) {
+            totalMinutes = log.sessions.reduce((sum: number, session: any) => {
+              return sum + parseDuration(session.duration);
+            }, 0);
+          } else if (log.startTime && log.endTime) {
+            const start = new Date(log.startTime).getTime();
+            const end = new Date(log.endTime).getTime();
+            totalMinutes = Math.floor((end - start) / (1000 * 60));
+          }
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          
           return (
             <div key={log.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-gray-800">{task?.customerName}</h3>
-                  <p className="text-gray-600">{task?.description}</p>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-800">{task?.customerName || 'Unknown Task'}</h3>
+                  <p className="text-gray-600">{task?.description || 'No description'}</p>
+                  {log.sessions && log.sessions.length > 1 && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      {log.sessions.length} sessions (with pauses)
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-blue-600">
-                    {formatDuration(log.startTime, log.endTime)}
+                    {hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`}
                   </p>
                   <p className="text-sm text-gray-500">
                     {new Date(log.startTime).toLocaleDateString()}
@@ -1316,7 +1393,9 @@ export default function EmployeeDashboard() {
                   <span>Ended: {new Date(log.endTime).toLocaleTimeString()}</span>
                 )}
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  log.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  log.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                  log.status === 'active' ? 'bg-blue-100 text-blue-800' : 
+                  'bg-gray-100 text-gray-800'
                 }`}>
                   {log.status}
                 </span>
