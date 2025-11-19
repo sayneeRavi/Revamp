@@ -18,13 +18,16 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# If you have public runtime envs, pass them at docker run via -e NEXT_PUBLIC_*
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Copy necessary files from build stage
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/.next ./\.next
-COPY --from=build /app/public ./public
+# Copy Next.js build output
+COPY --from=build --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=build --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=build --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+
+USER nextjs
 
 EXPOSE 3000
 

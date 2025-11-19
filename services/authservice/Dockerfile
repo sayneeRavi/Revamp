@@ -22,4 +22,4 @@ COPY --from=build /app/target/*.jar /app/app.jar
 # Default profile/port can be overridden with envs
 ENV JAVA_OPTS="-Xms256m -Xmx512m"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dserver.port=8081 -jar /app/app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

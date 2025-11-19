@@ -281,6 +281,11 @@ router.get("/by-user/:userId", async (req, res) => {
       headers: buildHeaders(req),
     });
 
+    // Handle 404 without trying to parse JSON
+    if (backendRes.status === 404) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
     const data = await backendRes.json();
     res.status(backendRes.status).json(data);
   } catch (err) {

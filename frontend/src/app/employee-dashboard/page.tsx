@@ -58,6 +58,25 @@ export default function EmployeeDashboard() {
   const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL as string;
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(true);
+  const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+
+  // Load shown notifications from localStorage and clean up old ones
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('shownNotifications');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Limit to last 100 notifications to prevent localStorage bloat
+        const limited = parsed.slice(-100);
+        setShownNotifications(new Set(limited));
+        localStorage.setItem('shownNotifications', JSON.stringify(limited));
+      }
+    } catch (e) {
+      console.error('Failed to load shown notifications:', e);
+    }
+  }, []);
 
   // Fetch employee record by userId from token to get the correct employeeId
   useEffect(() => {
@@ -184,15 +203,18 @@ export default function EmployeeDashboard() {
     // Don't fetch tasks if employeeId is not set (new employee with no record)
     if (!employeeId) {
       setTasks([]);
+      setIsLoadingTasks(false);
       return;
     }
 
     // Don't fetch if GATEWAY_URL is not set
     if (!GATEWAY_URL) {
       console.warn('GATEWAY_URL not set, skipping task fetch');
+      setIsLoadingTasks(false);
       return;
     }
 
+    setIsLoadingTasks(true);
     let timeoutId: NodeJS.Timeout | null = null;
     try {
       // Create abort controller for timeout
@@ -248,6 +270,8 @@ export default function EmployeeDashboard() {
       }
       // Don't clear tasks on error - keep existing tasks visible
       // setTasks([]); // Commented out to preserve existing tasks
+    } finally {
+      setIsLoadingTasks(false);
     }
   };
 
@@ -291,14 +315,43 @@ export default function EmployeeDashboard() {
           taskId: n.taskId
         }));
         
-        // Detect new notifications (not in current state)
-        const currentIds = new Set(notifications.map(n => n.id));
-        const newNotifications = transformed.filter(n => !currentIds.has(n.id));
-        
-        // Show toast for new unread notifications
-        newNotifications.filter(n => !n.read).forEach(notification => {
-          showToast(notification);
-        });
+        // Only show toast for notifications that haven't been shown before AND are unread
+        // Skip toasts on initial load to prevent notification spam on page refresh
+        if (!isInitialLoad) {
+          const newToastNotifications = transformed.filter(n => 
+            !n.read && !shownNotifications.has(n.id)
+          );
+          
+          if (newToastNotifications.length > 0) {
+            newToastNotifications.forEach(notification => {
+              showToast(notification);
+            });
+            
+            // Update shown notifications
+            const updatedShown = new Set([...shownNotifications, ...newToastNotifications.map(n => n.id)]);
+            setShownNotifications(updatedShown);
+            
+            // Persist to localStorage
+            try {
+              localStorage.setItem('shownNotifications', JSON.stringify([...updatedShown]));
+            } catch (e) {
+              console.error('Failed to save shown notifications:', e);
+            }
+          }
+        } else {
+          // On initial load, mark all current unread notifications as shown (but don't toast them)
+          const currentUnreadIds = transformed.filter(n => !n.read).map(n => n.id);
+          if (currentUnreadIds.length > 0) {
+            const updatedShown = new Set([...shownNotifications, ...currentUnreadIds]);
+            setShownNotifications(updatedShown);
+            try {
+              localStorage.setItem('shownNotifications', JSON.stringify([...updatedShown]));
+            } catch (e) {
+              console.error('Failed to save shown notifications:', e);
+            }
+          }
+          setIsInitialLoad(false);
+        }
         
         setNotifications(transformed);
       }
@@ -318,11 +371,12 @@ export default function EmployeeDashboard() {
     }
   };
 
-  // Fetch notifications when employeeId is available
+  // Fetch notifications when employeeId is available (initial load only)
   useEffect(() => {
     if (!isLoadingEmployee && employeeId && GATEWAY_URL) {
       fetchNotifications();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId, GATEWAY_URL, isLoadingEmployee]);
 
   // Close notification dropdown when clicking outside
@@ -344,12 +398,13 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     if (!employeeId || isLoadingEmployee) return;
     
-    const pollMs = 20000; // 20s
+    const pollMs = 30000; // 30s (reduced frequency to minimize refresh flicker)
     const timer = setInterval(() => {
       fetchTasks();
       fetchNotifications();
     }, pollMs);
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId, GATEWAY_URL, isLoadingEmployee]);
 
   const handleTaskAction = async (taskId: string, action: 'accept' | 'reject' | 'start' | 'complete' | 'deliver') => {
@@ -657,8 +712,30 @@ export default function EmployeeDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("shownNotifications"); // Clear notification tracking on logout
     window.location.href = "/login";
   };
+
+  // Skeleton loader component for tasks
+  const TaskSkeleton = () => (
+    <div className="bg-white rounded-lg shadow p-6 animate-pulse">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>
+        <div className="h-6 w-20 bg-gray-200 rounded"></div>
+      </div>
+      <div className="space-y-2 mb-4">
+        <div className="h-4 bg-gray-200 rounded w-full"></div>
+        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+      </div>
+      <div className="flex gap-2">
+        <div className="h-10 bg-gray-200 rounded w-24"></div>
+        <div className="h-10 bg-gray-200 rounded w-24"></div>
+      </div>
+    </div>
+  );
 
   const Sidebar = () => (
     <div className="w-64 bg-gray-800 shadow-lg rounded-l-2xl p-6 fixed left-0 top-0 h-screen overflow-y-auto flex flex-col">
@@ -943,13 +1020,12 @@ export default function EmployeeDashboard() {
       </div>
 
       <div className="space-y-4 relative z-10">
-        {isLoadingEmployee ? (
-          <div className="bg-gray-700 rounded-xl p-8 shadow-lg border border-gray-600 text-center">
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-600 rounded w-3/4 mx-auto mb-4"></div>
-              <div className="h-4 bg-gray-600 rounded w-1/2 mx-auto"></div>
-            </div>
-          </div>
+        {isLoadingEmployee || isLoadingTasks ? (
+          <>
+            <TaskSkeleton />
+            <TaskSkeleton />
+            <TaskSkeleton />
+          </>
         ) : tasks.length === 0 ? (
           <div className="bg-gray-700 rounded-xl p-8 shadow-lg border border-gray-600 text-center">
             <Wrench className="w-16 h-16 text-gray-500 mx-auto mb-4" />

@@ -13,7 +13,6 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
-  const token = localStorage.getItem("token");
 
   // Form state
   const [serviceType, setServiceType] = useState<"Service" | "Modification">("Service");
